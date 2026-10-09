@@ -1,64 +1,75 @@
 # 🌊 FloodVision: CV-Powered Waterlogging Depth Gauge
 
-**Built for Environmental Hacks 2026 | Track 02: Heat and Water**
-**Team:** TeamAPEX (Nagpur/Delhi)
+**Built for Environmental Hacks 2026 | Track 02: Heat and Water**  
+**Team:** TeamAPEX 
+**Live Demo:** [Add your Amplify URL here]  
+**API Docs:** [Add your App Runner Swagger URL here]/docs  
+**Video Walkthrough (3 min):** [Add YouTube/Loom link here]
+
+---
 
 ## 🚨 The Problem
-During monsoons, underpasses and road dips flood rapidly. Muddy water is completely opaque, causing drivers to misjudge depth. Driving into just 30cm of water can hydro-lock and destroy an engine. Current "flooded street" civic complaints are text-based and fail to capture the actual depth, making it impossible for traffic police to prioritize life-saving road closures.
+During monsoons, underpasses and arterial dips flood within minutes. Because turbid water is completely opaque, commuters face an optical illusion that hides true water depth. Entering just **30 cm** of water can hydro-lock an internal combustion engine, submerge EV battery packs, or sweep away light passenger vehicles. 
+
+Municipal response relies on delayed, text-only citizen complaints that lack quantifiable depth metrics, preventing traffic authorities from prioritizing emergency road closures before catastrophic damage occurs.
+
+---
 
 ## 💡 The Solution
-FloodVision is an image-led computer vision tool. Traffic wardens or citizens snap a photo of a flooded road using our React mobile web app. 
+FloodVision is an end-to-end edge-to-cloud computer vision platform. When citizens or traffic wardens snap a photo through our progressive React web application, the system:
 
-Our FastAPI backend utilizes an AI shortcut: instead of training a heavy custom model, we use a pre-trained YOLOv8 model to detect common reference objects (car tires). By calculating the ratio of the visible tire bounding box against standard physical dimensions, we instantly estimate the water depth in centimeters. 
+1. **Extracts Metadata:** Captures the image along with high-accuracy GPS coordinates and timestamps.
+2. **Performs Computer Vision Inference:** Runs a custom YOLOv8 model (fine-tuned on annotated flooded-vehicle datasets) to segment reference markers—specifically vehicle wheels and chassis baselines.
+3. **Calculates Physical Depth ($D$):** Derives millimeter-calibrated water depth via bounding-box aspect ratio distortions against known dimensional baselines:
+   $$D = H_{\text{ref}} \times \left(1 - \frac{h_{\text{visible}}}{h_{\text{nominal}}}\right)$$
+4. **Triggers Emergency Escalation:** If estimated water depth breaches the critical **30 cm** engine-kill threshold:
+   * Dispatches automated, geo-tagged SMS alerts to local traffic police via **Amazon SNS**.
+   * Persists the record to **Amazon DynamoDB** for real-time GIS mapping on the municipal triage dashboard.
+   * Stores the annotated visual proof in **Amazon S3**.
 
-If the water crosses the 30cm "engine-kill" threshold, the system automatically dispatches an emergency SMS to local authorities for immediate road closure.
+---
 
-## 🛠️ Architecture & Tech Stack
-This project uses a modern React/FastAPI stack heavily integrated with AWS services.
+## 🛠️ System Architecture & Tech Stack
 
-*   **Frontend (React + Vite):** Deployed on **AWS Amplify**. Provides a fast, mobile-responsive UI for camera access and geolocation capture.
-*   **Backend (FastAPI):** Containerized using Docker and deployed on **AWS App Runner** for scalable, serverless ML inference.
-*   **Storage (Amazon S3):** Stores the raw crowdsourced photos and processed bounding-box images.
-*   **Database (Amazon DynamoDB):** Logs the location (lat/lng), timestamp, and calculated depth for the municipal triage dashboard.
-*   **Alerts (Amazon SNS):** Fires real-time SMS alerts to traffic wardens if the depth calculation exceeds 30cm.
-
-## 📂 Repository Structure
+```text
+[ Citizen / Warden Device ]
+          │  (Photo + Geolocation)
+          ▼
+[ React + Vite Frontend (AWS Amplify) ]
+          │  (Multipart Form POST)
+          ▼
+[ FastAPI Inference API (AWS App Runner via Amazon ECR) ]
+   ├── Runs YOLOv8 Tensor Inference (best.pt weights)
+   ├── Computes Depth Calibration Geometry
+   │
+   ├──▶ Uploads Raw & Annotated Images ────▶ [ Amazon S3 ]
+   ├──▶ Writes Geospatial Telemetry ───────▶ [ Amazon DynamoDB ]
+   └──▶ Triggers Alert (if Depth > 30cm) ──▶ [ Amazon SNS ] ──▶ [ Traffic Wardens / Drivers ]
 ```
-├── frontend/                 # React App (AWS Amplify)
-│   ├── src/                  # React components & hooks
-│   └── package.json          
-├── backend/                  # FastAPI App (AWS App Runner)
+
+---
+
+## Tech Stack
+```
+├── model_training/                  # Colab training pipeline & dataset config
+│   ├── FloodVision_YOLOv8.ipynb     # Jupyter notebook for Colab T4 GPU training
+│   ├── dataset.yaml                 # Roboflow dataset configuration
+│   └── metrics/                     # Precision-Recall & F1-score plots
+├── frontend/                        # React web application
+│   ├── src/
+│   │   ├── components/              # Camera, Geolocation, and Result views
+│   │   ├── App.jsx                  # Main application container
+│   │   └── main.jsx                 # Entrypoint
+│   ├── package.json
+│   └── amplify.yml                  # AWS Amplify CI/CD build specification
+├── backend/                         # FastAPI inference microservice
 │   ├── app/
-│   │   ├── main.py           # API endpoints & AWS boto3 integration
-│   │   └── yolo_logic.py     # YOLOv8 inference & depth math
-│   ├── Dockerfile            # Multi-stage Docker build
-│   └── requirements.txt      
-└── README.md  
+│   │   ├── weights/
+│   │   │   └── best.pt              # Fine-tuned YOLOv8 model weights
+│   │   ├── main.py                  # API routes, CORS, and AWS SDK logic
+│   │   ├── yolo_logic.py            # Bounding-box ratio & depth calculations
+│   │   └── schemas.py               # Pydantic validation models
+│   ├── requirements.txt             # Python dependencies
+│   └── Dockerfile                   # Production container definition
+└── README.md
 ```
-
-## 🚀 Setup & Deployment
-
-**Prerequisites:** 
-* An active AWS Account (Verified via AWS Builder Center for Student Free Tier).
-* Docker installed locally for backend testing.
-* Node.js for frontend testing.
-
-**1. Deploy Backend (AWS App Runner)**
-1. Ensure your AWS credentials are configured locally.
-2. Build the Docker image from the `/backend` directory.
-3. Push the image to Amazon ECR (Elastic Container Registry).
-4. Create an AWS App Runner service pointing to your ECR image. Note the public URL.
-
-**2. Deploy Frontend (AWS Amplify)**
-1. Navigate to the AWS Amplify console.
-2. Connect this GitHub repository and select the `/frontend` root.
-3. Add an environment variable in Amplify `VITE_API_URL` pointing to your App Runner URL.
-4. Deploy the app.
-
-**3. Test the Pipeline**
-Upload a test image of a flooded car via the React app. Check your phone for the SNS SMS alert and verify the depth record in your DynamoDB table.
-
-## 📊 Hackathon Judging Rubric Addressed
-*   **Idea and Impact:** Directly addresses a massive, recurring monsoon hazard with a highly scalable, low-cost solution.
-*   **Built on AWS:** Extensively utilizes the AWS cloud (Amplify, App Runner, ECR, S3, DynamoDB, SNS).
-*   **Execution:** Bypassed the need for custom model training by creatively using bounding-box math on pre-trained models via a lightning-fast FastAPI endpoint.
