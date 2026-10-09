@@ -73,3 +73,18 @@ FloodVision is an end-to-end edge-to-cloud computer vision platform. When citize
 │   └── Dockerfile                   # Production container definition
 └── README.md
 ```
+
+## Deployment Instructions
+
+### Backend (AWS App Runner)
+1. Ensure the `backend` folder is pushed to ECR or linked to App Runner.
+2. The Dockerfile exposes port 8080.
+3. Configure the environment variables in App Runner using `backend/.env.example`.
+4. Ensure the App Runner IAM role has access to the S3 Bucket, DynamoDB table, and SNS Topic.
+
+### Frontend (AWS Amplify)
+1. Link your repository to AWS Amplify.
+2. Set the base directory to `frontend`.
+3. Configure the `VITE_API_BASE_URL` environment variable in Amplify to point to your App Runner endpoint.
+4. Build settings should use `npm run build`.
+
