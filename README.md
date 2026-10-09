@@ -74,7 +74,25 @@ FloodVision is an end-to-end edge-to-cloud computer vision platform. When citize
 └── README.md
 ```
 
-## Deployment Instructions
+## Deployment & Setup Instructions
+
+### Local Development Setup
+1. Create a `.env` file in the `backend` directory based on `backend/.env.example`.
+2. Add your AWS credentials (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`) to the `.env` file to fix botocore credential errors.
+3. Start the backend:
+   ```bash
+   cd backend
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   python -m uvicorn app.main:app --reload
+   ```
+4. Start the frontend:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
 ### Backend (AWS App Runner)
 1. Ensure the `backend` folder is pushed to ECR or linked to App Runner.
