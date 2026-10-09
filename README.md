@@ -23,7 +23,7 @@ This project uses a modern React/FastAPI stack heavily integrated with AWS servi
 *   **Alerts (Amazon SNS):** Fires real-time SMS alerts to traffic wardens if the depth calculation exceeds 30cm.
 
 ## 📂 Repository Structure
-
+```
 ├── frontend/                 # React App (AWS Amplify)
 │   ├── src/                  # React components & hooks
 │   └── package.json          
@@ -33,7 +33,8 @@ This project uses a modern React/FastAPI stack heavily integrated with AWS servi
 │   │   └── yolo_logic.py     # YOLOv8 inference & depth math
 │   ├── Dockerfile            # Multi-stage Docker build
 │   └── requirements.txt      
-└── README.md                 
+└── README.md  
+```
 
 ## 🚀 Setup & Deployment
 
