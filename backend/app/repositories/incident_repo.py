@@ -6,6 +6,26 @@ from datetime import datetime, timedelta
 import uuid
 import logging
 
+from decimal import Decimal
+
+def _floats_to_decimals(obj):
+    if isinstance(obj, float):
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: _floats_to_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_floats_to_decimals(v) for v in obj]
+    return obj
+
+def _decimals_to_floats(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {k: _decimals_to_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_decimals_to_floats(v) for v in obj]
+    return obj
+
 logger = logging.getLogger(__name__)
 
 class IncidentRepository:
@@ -43,7 +63,10 @@ class IncidentRepository:
             }
         }
         try:
-            self.dynamodb = boto3.resource('dynamodb', region_name=settings.AWS_REGION)
+            kwargs = {"region_name": settings.AWS_REGION}
+            if getattr(settings, "AWS_ENDPOINT_URL", None):
+                kwargs["endpoint_url"] = settings.AWS_ENDPOINT_URL
+            self.dynamodb = boto3.resource('dynamodb', **kwargs)
             self.table = self.dynamodb.Table(self.table_name)
         except Exception as e:
             logger.warning(f"DynamoDB initialization fallback to memory: {e}")
@@ -62,10 +85,12 @@ class IncidentRepository:
         
         if self.table:
             try:
-                self.table.put_item(Item=item)
+                dynamo_item = _floats_to_decimals(item)
+                self.table.put_item(Item=dynamo_item)
                 return incident_id
             except (ClientError, BotoCoreError, Exception) as e:
                 logger.warning(f"Failed to save to DynamoDB, falling back to local memory: {e}")
+
         
         self._local_incidents[incident_id] = item
         return incident_id
@@ -94,7 +119,7 @@ class IncidentRepository:
                 )
                 items = response.get("Items")
                 if items is not None:
-                    return items
+                    return _decimals_to_floats(items)
             except (ClientError, BotoCoreError, Exception) as e:
                 logger.warning(f"Failed to scan DynamoDB, falling back to local memory: {e}")
         

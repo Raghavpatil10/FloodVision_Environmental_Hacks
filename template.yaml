@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  FloodVision - CV-Powered Waterlogging Depth Gauge & Hazard Alert Platform.
+  Built for Environmental Hacks 2026 (Heat and Water Track).
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 1024
+    Environment:
+      Variables:
+        AWS_REGION: !Ref AWS::Region
+        S3_BUCKET_NAME: !Ref FloodVisionImagesBucket
+        DYNAMODB_TABLE_NAME: !Ref FloodVisionIncidentsTable
+        SNS_TOPIC_ARN: !Ref FloodVisionAlertsTopic
+        CRITICAL_DEPTH_CM: "30.0"
+
+Resources:
+  # 1. Amazon S3 Bucket for Raw and Annotated CV Images
+  FloodVisionImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "floodvision-images-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+            AllowedOrigins:
+              - '*'
+
+  # 2. Amazon DynamoDB Table for Incident Telemetry & Depth Gauging
+  FloodVisionIncidentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: floodvision_incidents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: incident_id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: reported_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: incident_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StatusReportedAtIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: reported_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # 3. Amazon SNS Topic for Emergency Depth Breach SMS Alerts (>30cm)
+  FloodVisionAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: floodvision_critical_alerts
+      DisplayName: "FloodVision Critical Water Hazard Escalation"
+
+  # 4. Serverless FastAPI Microservice Backend
+  FloodVisionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      PackageType: Image
+      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/floodvision-backend:latest"
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref FloodVisionImagesBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref FloodVisionIncidentsTable
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt FloodVisionAlertsTopic.TopicName
+      Events:
+        ApiEvent:
+          Type: HttpApi
+
+Outputs:
+  S3BucketName:
+    Description: "Amazon S3 Bucket for visual flood proof storage"
+    Value: !Ref FloodVisionImagesBucket
+
+  DynamoDBTableName:
+    Description: "Amazon DynamoDB Table for GIS incident storage"
+    Value: !Ref FloodVisionIncidentsTable
+
+  SNSTopicArn:
+    Description: "Amazon SNS Topic ARN for traffic police hazard alerts"
+    Value: !Ref FloodVisionAlertsTopic
