@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { MapContainer, TileLayer, Polyline, Popup, Marker } from 'react-leaflet';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 export default function RoutePlanner() {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -33,7 +35,7 @@ export default function RoutePlanner() {
     setRouteData(null);
 
     try {
-      const res = await axios.post('http://localhost:8000/api/routes/plan', {
+      const res = await axios.post(`${API_BASE_URL}/api/routes/plan`, {
         origin: origCoords,
         destination: destCoords
       });
