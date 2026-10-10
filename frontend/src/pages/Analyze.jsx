@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { 
+  Camera, 
+  UploadCloud, 
+  MapPin, 
+  CheckCircle2, 
+  AlertTriangle, 
+  ShieldAlert, 
+  ArrowRight, 
+  RefreshCw, 
+  Activity,
+  Maximize2
+} from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -11,14 +23,24 @@ export default function Analyze() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [coords, setCoords] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
 
-  const handleFileChange = (e) => {
-    const selected = e.target.files[0];
-    if (selected) {
+  const handleFile = (selected) => {
+    if (selected && (selected.type === 'image/jpeg' || selected.type === 'image/png' || selected.type === 'image/jpg')) {
       setFile(selected);
       setPreviewUrl(URL.createObjectURL(selected));
       setResult(null);
       setError(null);
+    } else if (selected) {
+      setError('Please upload a valid JPEG or PNG image.');
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -33,7 +55,7 @@ export default function Analyze() {
         },
         (err) => {
           console.error("Location error", err);
-          alert("Could not get location. You can still upload without it.");
+          alert("Could not retrieve GPS location. You can still analyze without GPS coordinates.");
         }
       );
     }
@@ -57,7 +79,7 @@ export default function Analyze() {
       setResult(res.data);
     } catch (err) {
       const detail = err.response?.data?.detail;
-      setError(detail || err.message || 'An error occurred during analysis');
+      setError(detail || err.message || 'An error occurred during computer vision analysis.');
     } finally {
       setLoading(false);
     }
@@ -65,147 +87,277 @@ export default function Analyze() {
 
   const getStatusBadge = (status) => {
     if (status === 'Safe') {
-      return { bg: '#dcfce7', text: '#15803d', border: '#86efac', label: 'SAFE (0-15 cm)' };
+      return { className: 'badge-safe', icon: CheckCircle2, label: 'SAFE (0 - 15 cm)', color: '#34d399' };
     }
     if (status === 'Caution') {
-      return { bg: '#fef3c7', text: '#b45309', border: '#fcd34d', label: 'CAUTION (16-29 cm)' };
+      return { className: 'badge-caution', icon: AlertTriangle, label: 'CAUTION (16 - 29 cm)', color: '#fbbf24' };
     }
-    return { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5', label: 'DANGER (30+ cm)' };
+    return { className: 'badge-danger', icon: ShieldAlert, label: 'DANGER (30+ cm STALL HAZARD)', color: '#f87171' };
   };
 
-  const badge = result ? getStatusBadge(result.status_flag) : null;
+  const statusConfig = result ? getStatusBadge(result.status_flag) : null;
+  const StatusIcon = statusConfig ? statusConfig.icon : null;
 
   return (
-    <div style={{ maxWidth: '750px', margin: '0 auto', padding: '24px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-      <h2 style={{ margin: '0 0 8px 0', color: '#1e293b' }}>🌊 CV Waterlogging Depth Gauge</h2>
-      <p style={{ color: '#64748b', marginTop: 0 }}>
-        Upload a photo of a flooded road. Our YOLOv8 model calculates water depth in centimeters 
-        by calibrating against the standard 65cm vehicle tire diameter.
-      </p>
-      
-      <form onSubmit={handleUpload}>
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontWeight: 600, marginBottom: '6px', color: '#334155' }}>Select Street / Vehicle Photo:</label>
-          <input 
-            type="file" 
-            accept="image/jpeg, image/png, image/jpg" 
-            onChange={handleFileChange}
-            style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '6px', boxSizing: 'border-box' }}
-          />
+    <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+      <div className="glass-card">
+        {/* Header */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '8px', 
+              background: 'rgba(6, 182, 212, 0.15)', display: 'flex', 
+              alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Camera size={20} color="#38bdf8" />
+            </div>
+            <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>CV Water Depth Gauge</h2>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.98rem' }}>
+            Upload a flooded road or vehicle photo. Our YOLOv8 model calculates water depth 
+            by calibrating visible aspect ratios and tire submersion against the 65 cm physical baseline.
+          </p>
         </div>
 
-        {previewUrl && !result && (
-          <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-            <img 
-              src={previewUrl} 
-              alt="Preview" 
-              style={{ maxHeight: '240px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #e2e8f0' }} 
+        {/* Upload Form */}
+        <form onSubmit={handleUpload}>
+          <div 
+            className={`dropzone ${dragOver ? 'dropzone-active' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById('file-upload-input').click()}
+            style={{ marginBottom: '20px' }}
+          >
+            <input 
+              id="file-upload-input"
+              type="file" 
+              accept="image/jpeg, image/png, image/jpg" 
+              onChange={(e) => handleFile(e.target.files[0])}
+              style={{ display: 'none' }}
             />
+
+            {previewUrl ? (
+              <div style={{ textAlign: 'center' }}>
+                <img 
+                  src={previewUrl} 
+                  alt="Upload preview" 
+                  style={{ maxHeight: '280px', maxWidth: '100%', borderRadius: '8px', border: '1px solid var(--border-glass)' }}
+                />
+                <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#38bdf8' }}>
+                  Click or drag another image to replace
+                </div>
+              </div>
+            ) : (
+              <div>
+                <UploadCloud size={44} color="#38bdf8" style={{ margin: '0 auto 12px auto', display: 'block', opacity: 0.8 }} />
+                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  Drag & Drop street photo, or <span style={{ color: '#38bdf8', textDecoration: 'underline' }}>Browse</span>
+                </div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Supports JPEG, JPG, PNG (Max 5MB)
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Location & Controls Strip */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            marginBottom: '24px',
+            padding: '12px 16px',
+            background: 'rgba(15, 23, 42, 0.5)',
+            border: '1px solid var(--border-glass)',
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <button 
+              type="button" 
+              onClick={requestLocation}
+              className="btn btn-secondary"
+              style={{ padding: '8px 14px', fontSize: '0.88rem' }}
+            >
+              <MapPin size={16} color="#38bdf8" />
+              <span>Attach GPS Coordinates</span>
+            </button>
+
+            {coords ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', color: '#34d399', fontWeight: 600 }}>
+                <CheckCircle2 size={16} />
+                <span>Lat: {coords.lat.toFixed(4)}, Lon: {coords.lon.toFixed(4)}</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                GPS optional (logs to Live GIS Map)
+              </div>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <button 
+            type="submit" 
+            disabled={!file || loading}
+            className="btn btn-primary"
+            style={{ width: '100%', padding: '14px', fontSize: '1.05rem' }}
+          >
+            {loading ? (
+              <>
+                <RefreshCw size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                <span>Running YOLOv8 Neural Inference...</span>
+              </>
+            ) : (
+              <>
+                <Activity size={18} />
+                <span>Analyze Water Depth</span>
+                <ArrowRight size={18} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Error Alert */}
+        {error && (
+          <div style={{
+            marginTop: '20px',
+            padding: '14px 18px',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#f87171',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <AlertTriangle size={20} />
+            <span><strong>Analysis Error:</strong> {error}</span>
           </div>
         )}
-        
-        <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button 
-            type="button" 
-            onClick={requestLocation} 
-            style={{ padding: '8px 16px', backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}
-          >
-            📍 Attach GPS Location
-          </button>
-          {coords ? (
-            <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Lat: {coords.lat.toFixed(4)}, Lon: {coords.lon.toFixed(4)}</span>
-          ) : (
-            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Optional: Logs incident to Live Map</span>
-          )}
-        </div>
 
-        <button 
-          type="submit" 
-          disabled={!file || loading}
-          style={{ 
-            width: '100%',
-            padding: '12px 20px', 
-            backgroundColor: (file && !loading) ? '#1a56db' : '#94a3b8', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px', 
-            cursor: (file && !loading) ? 'pointer' : 'not-allowed',
-            fontWeight: 600,
-            fontSize: '1rem'
-          }}
-        >
-          {loading ? 'Running YOLOv8 CV Inference...' : 'Analyze Water Depth'}
-        </button>
-      </form>
-
-      {error && (
-        <div style={{ marginTop: '20px', padding: '14px', backgroundColor: '#fee2e2', color: '#b91c1c', borderRadius: '6px', border: '1px solid #fca5a5' }}>
-          <strong>Error:</strong> {error}
-        </div>
-      )}
-
-      {result && (
-        <div style={{ marginTop: '28px', padding: '20px', border: `2px solid ${badge.border}`, backgroundColor: badge.bg, borderRadius: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, color: '#0f172a' }}>Detection Telemetry</h3>
-            <span style={{ 
-              padding: '6px 14px', 
-              borderRadius: '20px', 
-              fontWeight: 'bold', 
-              fontSize: '0.9rem',
-              backgroundColor: 'white',
-              color: badge.text,
-              border: `1px solid ${badge.border}`
-            }}>
-              {badge.label}
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '20px' }}>
-            <div style={{ background: 'white', padding: '12px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Estimated Depth</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: badge.text }}>{result.estimated_depth_cm} cm</div>
-            </div>
-            <div style={{ background: 'white', padding: '12px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Tire Submerged</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#0284c7' }}>{result.submerged_ratio || 0}%</div>
-            </div>
-            <div style={{ background: 'white', padding: '12px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Safety Score</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#475569' }}>{result.safety_score}/100</div>
-            </div>
-            <div style={{ background: 'white', padding: '12px', borderRadius: '8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Model Confidence</div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: '#475569' }}>{Math.round((result.confidence || 0.8) * 100)}%</div>
-            </div>
-          </div>
-
-          <p style={{ margin: '0 0 16px 0', color: '#334155', fontWeight: 500 }}>
-            <strong>Analysis:</strong> {result.reason}
-          </p>
-
-          {/* Annotated Image with Computer Vision Bounding Boxes */}
-          {result.annotated_image_url && (
-            <div style={{ marginTop: '16px', marginBottom: '16px', background: '#0f172a', padding: '8px', borderRadius: '8px' }}>
-              <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 600 }}>
-                Visual Proof (YOLOv8 Annotated Bounding Boxes & Waterline):
+        {/* Results Dashboard */}
+        {result && (
+          <div style={{ marginTop: '36px', borderTop: '1px solid var(--border-glass)', paddingTop: '28px' }}>
+            {/* Telemetry Status Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Detection Telemetry</span>
+                <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>Inference Results</h3>
               </div>
-              <img 
-                src={result.annotated_image_url} 
-                alt="YOLOv8 Annotated Result" 
-                style={{ width: '100%', maxHeight: '450px', objectFit: 'contain', borderRadius: '6px' }}
-              />
+              <div className={`badge ${statusConfig.className}`}>
+                <StatusIcon size={16} />
+                <span>{statusConfig.label}</span>
+              </div>
             </div>
-          )}
 
-          {result.incident_id && (
-            <div style={{ marginTop: '14px', padding: '10px', background: 'white', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Incident logged to DynamoDB (ID: {result.incident_id.slice(0, 8)}...)</span>
-              <Link to="/map" style={{ color: '#1a56db', fontWeight: 600, textDecoration: 'none' }}>View on Live Map →</Link>
+            {/* 4 Metric Cards Grid */}
+            <div className="telemetry-grid">
+              <div className="metric-card">
+                <div className="metric-title">Estimated Depth</div>
+                <div className="metric-value" style={{ color: statusConfig.color }}>
+                  {result.estimated_depth_cm} <span style={{ fontSize: '1rem', fontWeight: 500 }}>cm</span>
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-title">Tire Submerged</div>
+                <div className="metric-value" style={{ color: '#38bdf8' }}>
+                  {result.submerged_ratio || 0} <span style={{ fontSize: '1rem', fontWeight: 500 }}>%</span>
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-title">Safety Score</div>
+                <div className="metric-value" style={{ color: result.safety_score < 30 ? '#f87171' : (result.safety_score < 70 ? '#fbbf24' : '#34d399') }}>
+                  {result.safety_score} <span style={{ fontSize: '1rem', fontWeight: 500 }}>/100</span>
+                </div>
+              </div>
+
+              <div className="metric-card">
+                <div className="metric-title">Model Confidence</div>
+                <div className="metric-value" style={{ color: '#c084fc' }}>
+                  {Math.round((result.confidence || 0.8) * 100)} <span style={{ fontSize: '1rem', fontWeight: 500 }}>%</span>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Diagnostic Message */}
+            <div style={{
+              padding: '14px 18px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(15, 23, 42, 0.65)',
+              border: '1px solid var(--border-glass)',
+              marginBottom: '24px',
+              color: 'var(--text-secondary)',
+              fontSize: '0.95rem',
+              lineHeight: 1.5
+            }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Impact Assessment: </strong> 
+              {result.reason}
+            </div>
+
+            {/* Visual Proof Section */}
+            {result.annotated_image_url && (
+              <div style={{
+                borderRadius: 'var(--radius-lg)',
+                overflow: 'hidden',
+                background: '#020617',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                boxShadow: 'var(--shadow-md)',
+                marginBottom: '20px'
+              }}>
+                <div style={{
+                  padding: '10px 16px',
+                  background: 'rgba(15, 23, 42, 0.95)',
+                  borderBottom: '1px solid var(--border-glass)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.85rem'
+                }}>
+                  <span style={{ fontWeight: 600, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={14} />
+                    <span>Visual Proof: YOLOv8 Bounding Boxes & Calibrated Waterline</span>
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>65cm Physical Baseline</span>
+                </div>
+                <div style={{ padding: '8px', textAlign: 'center' }}>
+                  <img 
+                    src={result.annotated_image_url} 
+                    alt="YOLOv8 Annotated Visual Gauge" 
+                    style={{ maxWidth: '100%', maxHeight: '520px', borderRadius: 'var(--radius-sm)', objectFit: 'contain' }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Incident Persisted Banner */}
+            {result.incident_id && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '14px 18px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(16, 185, 129, 0.1)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <div style={{ color: '#34d399', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={18} />
+                  <span>Logged to Amazon DynamoDB (ID: {result.incident_id.slice(0, 8)}...)</span>
+                </div>
+                <Link to="/map" className="btn btn-emerald" style={{ padding: '8px 16px', fontSize: '0.88rem' }}>
+                  <span>View on Live Map</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
