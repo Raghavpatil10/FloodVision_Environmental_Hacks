@@ -1,0 +1,47 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Model weights and datasets
+# Uncomment these if the files are large and should not be committed
+# *.pt
+# *.pth
+# *.onnx
+# datasets/
+# data/
+
+# Node.js
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Build and temporary files
+build/
+tmp/
+temp/
+*.log
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
