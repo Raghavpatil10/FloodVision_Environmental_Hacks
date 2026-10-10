@@ -54,7 +54,21 @@ const getRiskMeta = (riskLevel, depth) => {
   };
 };
 
-const createCustomIcon = (meta) => {
+const createCustomIcon = (meta, isCritical = false) => {
+  if (isCritical) {
+    return new L.DivIcon({
+      className: 'beacon-marker-container',
+      html: `
+        <div class="beacon-wave-2"></div>
+        <div class="beacon-wave-1"></div>
+        <div class="beacon-core"></div>
+      `,
+      iconSize: [36, 36],
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -18]
+    });
+  }
+
   return new L.DivIcon({
     className: 'pulse-marker-container',
     html: `
@@ -280,12 +294,13 @@ export default function MapDashboard() {
           {incidents.map((inc) => {
             if (!inc.latitude || !inc.longitude) return null;
             const meta = getRiskMeta(inc.risk_level, inc.estimated_depth_cm);
+            const isCritical = inc.estimated_depth_cm >= 30 || inc.sms_alert_sent || inc.risk_level === 'critical';
 
             return (
               <Marker 
                 key={inc.incident_id} 
                 position={[inc.latitude, inc.longitude]}
-                icon={createCustomIcon(meta)}
+                icon={createCustomIcon(meta, isCritical)}
               >
                 <Popup>
                   <div style={{ minWidth: '220px', fontFamily: 'var(--font-sans)', color: '#f8fafc' }}>
@@ -307,6 +322,28 @@ export default function MapDashboard() {
                       {inc.estimated_depth_cm >= 30 ? <ShieldAlert size={12} /> : <Activity size={12} />}
                       <span>{inc.status_flag || meta.label}</span>
                     </div>
+
+                    {/* Critical Hazard / SMS Dispatched Notification Badge */}
+                    {isCritical && (
+                      <div style={{
+                        background: '#ef4444',
+                        color: '#ffffff',
+                        border: '2px solid #000000',
+                        borderRadius: '6px',
+                        padding: '4px 8px',
+                        fontSize: '0.74rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        marginBottom: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '2px 2px 0px #000000'
+                      }}>
+                        <ShieldAlert size={12} />
+                        <span>Automated SMS Alert Dispatched ✓</span>
+                      </div>
+                    )}
 
                     {/* Depth Gauge */}
                     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '8px' }}>

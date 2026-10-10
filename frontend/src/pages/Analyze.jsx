@@ -11,7 +11,10 @@ import {
   ArrowRight, 
   RefreshCw, 
   Activity,
-  Maximize2
+  Maximize2,
+  BellRing,
+  Radio,
+  Check
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -24,6 +27,7 @@ export default function Analyze() {
   const [error, setError] = useState(null);
   const [coords, setCoords] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [showSmsToast, setShowSmsToast] = useState(false);
 
   const handleFile = (selected) => {
     if (selected && (selected.type === 'image/jpeg' || selected.type === 'image/png' || selected.type === 'image/jpg')) {
@@ -31,6 +35,7 @@ export default function Analyze() {
       setPreviewUrl(URL.createObjectURL(selected));
       setResult(null);
       setError(null);
+      setShowSmsToast(false);
     } else if (selected) {
       setError('Please upload a valid JPEG or PNG image.');
     }
@@ -67,6 +72,7 @@ export default function Analyze() {
 
     setLoading(true);
     setError(null);
+    setShowSmsToast(false);
     const formData = new FormData();
     formData.append('file', file);
     if (coords) {
@@ -77,6 +83,9 @@ export default function Analyze() {
     try {
       const res = await axios.post(`${API_BASE_URL}/api/analyze`, formData);
       setResult(res.data);
+      if (res.data.sms_alert_sent) {
+        setShowSmsToast(true);
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(detail || err.message || 'An error occurred during computer vision analysis.');
@@ -239,6 +248,41 @@ export default function Analyze() {
         {/* Results Dashboard */}
         {result && (
           <div style={{ marginTop: '36px', borderTop: '1px solid var(--border-glass)', paddingTop: '28px' }}>
+            
+            {/* High-Impact Emergency Toast / Banner (Triggered when sms_alert_sent is true) */}
+            {(result.sms_alert_sent || showSmsToast) && (
+              <div className="emergency-toast">
+                <div className="emergency-toast-content">
+                  <div style={{
+                    background: '#000000',
+                    borderRadius: '50%',
+                    width: '44px',
+                    height: '44px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <BellRing size={24} color="#facc15" />
+                  </div>
+                  <div>
+                    <div className="emergency-toast-title">
+                      Critical Depth Reached: Automated SMS Dispatched to Local Authorities
+                    </div>
+                    <div className="emergency-toast-subtitle">
+                      Amazon SNS Emergency Alert sent to Traffic Warden hotline. Immediate road closure recommended.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                  <span className="alert-dispatched-badge">
+                    <Check size={16} strokeWidth={3} />
+                    <span>Alert Dispatched ✓</span>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Telemetry Status Bar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
               <div>
@@ -253,9 +297,9 @@ export default function Analyze() {
 
             {/* 4 Metric Cards Grid */}
             <div className="telemetry-grid">
-              <div className="metric-card">
+              <div className={`metric-card ${result.estimated_depth_cm > 30 || result.sms_alert_sent ? 'metric-card-danger' : ''}`}>
                 <div className="metric-title">Estimated Depth</div>
-                <div className="metric-value" style={{ color: statusConfig.color }}>
+                <div className="metric-value" style={{ color: result.estimated_depth_cm > 30 ? '#ef4444' : statusConfig.color }}>
                   {result.estimated_depth_cm} <span style={{ fontSize: '1rem', fontWeight: 500 }}>cm</span>
                 </div>
               </div>
