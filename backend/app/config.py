@@ -18,6 +18,17 @@ class Settings(BaseSettings):
     TRAFFIC_WARDEN_PHONE_NUMBER: Optional[str] = os.getenv("TRAFFIC_WARDEN_PHONE_NUMBER", "+15550192834")
     AWS_ENDPOINT_URL: Optional[str] = os.getenv("AWS_ENDPOINT_URL", None)
 
+    # Authentication & Session Security Settings
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "floodvision-auth-jwt-secret-key-change-in-prod-2026")
+    SESSION_COOKIE_NAME: str = "floodvision_session"
+    SESSION_MAX_AGE_SECONDS: int = int(os.getenv("SESSION_MAX_AGE_SECONDS", str(86400 * 7)))  # 7 days
+    COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE", "lax")
+    USERS_DB_PATH: str = os.getenv("USERS_DB_PATH", os.path.join(os.path.dirname(__file__), "..", "data", "users.db"))
+    ADMIN_INITIAL_EMAIL: Optional[str] = os.getenv("ADMIN_INITIAL_EMAIL", None)
+    ADMIN_INITIAL_PASSWORD: Optional[str] = os.getenv("ADMIN_INITIAL_PASSWORD", None)
+    ADMIN_INITIAL_NAME: str = os.getenv("ADMIN_INITIAL_NAME", "Emergency Response Admin")
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

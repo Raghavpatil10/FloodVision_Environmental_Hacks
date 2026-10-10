@@ -19,13 +19,16 @@ htmlcov/
 venv/
 env/
 
-# Model weights and datasets
-# Uncomment these if the files are large and should not be committed
+# Model weights, datasets, and local database storage
+*.db
+*.sqlite
+*.sqlite3
+data/
+backend/data/
 # *.pt
 # *.pth
 # *.onnx
 # datasets/
-# data/
 
 # Node.js
 node_modules/
