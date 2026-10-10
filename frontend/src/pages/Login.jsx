@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -14,6 +15,8 @@ import {
   Info, 
   X 
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export default function Login() {
   const { login, user } = useAuth();

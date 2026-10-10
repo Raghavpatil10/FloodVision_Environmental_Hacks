@@ -55,6 +55,12 @@ class UserRepository:
                 conn.execute("ALTER TABLE users ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''")
                 conn.execute("UPDATE users SET updated_at = created_at WHERE updated_at = ''")
 
+            if "email_verified" not in existing_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0")
+
+            if "verified_at" not in existing_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
+
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);")
             conn.commit()
 
@@ -69,6 +75,8 @@ class UserRepository:
             "hashed_password": pwd_hash,  # alias for backwards compatibility
             "role": d["role"],
             "is_active": bool(d.get("is_active", 1)),
+            "email_verified": bool(d.get("email_verified", 0)),
+            "verified_at": d.get("verified_at"),
             "created_at": d["created_at"],
             "updated_at": d.get("updated_at") or d["created_at"],
             "last_login": d.get("last_login")
@@ -80,7 +88,8 @@ class UserRepository:
         email: str, 
         hashed_password: str, 
         role: str = "user",
-        is_active: bool = True
+        is_active: bool = True,
+        email_verified: bool = False
     ) -> Dict[str, Any]:
         user_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
@@ -88,36 +97,38 @@ class UserRepository:
         clean_name = name.strip()
         safe_role = "admin" if role.lower() == "admin" else "user"
         active_int = 1 if is_active else 0
+        verified_int = 1 if email_verified else 0
+        verified_at = now if email_verified else None
 
         with self._get_connection() as conn:
-            # Check which password column is supported
             cursor = conn.execute("PRAGMA table_info(users)")
             existing_cols = {r["name"] for r in cursor.fetchall()}
 
-            if "password_hash" in existing_cols and "hashed_password" in existing_cols:
-                conn.execute(
-                    """
-                    INSERT INTO users (id, name, email, password_hash, hashed_password, role, is_active, created_at, updated_at, last_login)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (user_id, clean_name, clean_email, hashed_password, hashed_password, safe_role, active_int, now, now, None)
-                )
-            elif "password_hash" in existing_cols:
-                conn.execute(
-                    """
-                    INSERT INTO users (id, name, email, password_hash, role, is_active, created_at, updated_at, last_login)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (user_id, clean_name, clean_email, hashed_password, safe_role, active_int, now, now, None)
-                )
-            else:
-                conn.execute(
-                    """
-                    INSERT INTO users (id, name, email, hashed_password, role, created_at, last_login)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (user_id, clean_name, clean_email, hashed_password, safe_role, now, None)
-                )
+            cols = ["id", "name", "email", "role", "created_at"]
+            vals = [user_id, clean_name, clean_email, safe_role, now]
+
+            if "password_hash" in existing_cols:
+                cols.append("password_hash")
+                vals.append(hashed_password)
+            if "hashed_password" in existing_cols:
+                cols.append("hashed_password")
+                vals.append(hashed_password)
+            if "is_active" in existing_cols:
+                cols.append("is_active")
+                vals.append(active_int)
+            if "updated_at" in existing_cols:
+                cols.append("updated_at")
+                vals.append(now)
+            if "email_verified" in existing_cols:
+                cols.append("email_verified")
+                vals.append(verified_int)
+            if "verified_at" in existing_cols:
+                cols.append("verified_at")
+                vals.append(verified_at)
+
+            placeholders = ", ".join(["?"] * len(cols))
+            sql = f"INSERT INTO users ({', '.join(cols)}) VALUES ({placeholders})"
+            conn.execute(sql, tuple(vals))
             conn.commit()
 
         return {
@@ -128,10 +139,38 @@ class UserRepository:
             "hashed_password": hashed_password,
             "role": safe_role,
             "is_active": is_active,
+            "email_verified": email_verified,
+            "verified_at": verified_at,
             "created_at": now,
             "updated_at": now,
             "last_login": None
         }
+
+    def verify_email(self, user_id: str) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE users SET email_verified = 1, verified_at = ?, updated_at = ? WHERE id = ?",
+                (now, now, user_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def update_role(self, user_id: str, role: str) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        clean_role = "admin" if role.lower() == "admin" else "user"
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
+                (clean_role, now, user_id)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_admins_count(self) -> int:
+        with self._get_connection() as conn:
+            row = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()
+            return row[0] if row else 0
 
     def get_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         clean_email = email.strip().lower()

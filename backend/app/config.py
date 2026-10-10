@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = os.getenv("COOKIE_SECURE", "false").lower() == "true"
     COOKIE_SAMESITE: str = os.getenv("COOKIE_SAMESITE", "lax")
     USERS_DB_PATH: str = os.getenv("USERS_DB_PATH", os.path.join(os.path.dirname(__file__), "..", "data", "users.db"))
-    ADMIN_INITIAL_EMAIL: Optional[str] = os.getenv("ADMIN_INITIAL_EMAIL", None)
-    ADMIN_INITIAL_PASSWORD: Optional[str] = os.getenv("ADMIN_INITIAL_PASSWORD", None)
+    ADMIN_INITIAL_EMAIL: Optional[str] = os.getenv("ADMIN_INITIAL_EMAIL", "admin@floodvision.org")
+    ADMIN_INITIAL_PASSWORD: Optional[str] = os.getenv("ADMIN_INITIAL_PASSWORD", "FloodVisionAdmin2026!")
     ADMIN_INITIAL_NAME: str = os.getenv("ADMIN_INITIAL_NAME", "Emergency Response Admin")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

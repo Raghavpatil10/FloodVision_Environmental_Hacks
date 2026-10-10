@@ -51,6 +51,8 @@ class UserResponse(BaseModel):
     email: str
     role: str
     is_active: bool = True
+    email_verified: bool = False
+    verified_at: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
     last_login: Optional[str] = None

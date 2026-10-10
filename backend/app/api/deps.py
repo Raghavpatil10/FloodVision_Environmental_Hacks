@@ -47,13 +47,24 @@ def get_current_user(request: Request) -> Dict[str, Any]:
 
     return user
 
-def get_current_admin_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+def require_verified_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    if not current_user.get("email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required. Please verify your email address to perform this action."
+        )
+    return current_user
+
+def require_admin(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: This action requires Administrator privileges."
         )
     return current_user
+
+# Alias for backwards compatibility
+get_current_admin_user = require_admin
 
 def get_optional_current_user(request: Request) -> Optional[Dict[str, Any]]:
     token = get_token_from_request(request)

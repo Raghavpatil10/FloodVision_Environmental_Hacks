@@ -3,6 +3,7 @@ from typing import Dict, Any, List
 from ..api.deps import get_current_admin_user
 from ..repositories.user_repo import user_repo
 from ..repositories.incident_repo import incident_repo
+from ..repositories.audit_log_repo import audit_log_repo
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -37,4 +38,10 @@ def get_admin_overview(admin_user: Dict[str, Any] = Depends(get_current_admin_us
 def get_all_users(admin_user: Dict[str, Any] = Depends(get_current_admin_user)):
     return {
         "users": user_repo.list_users(limit=100)
+    }
+
+@router.get("/audit-logs")
+def get_audit_logs(limit: int = 50, admin_user: Dict[str, Any] = Depends(get_current_admin_user)):
+    return {
+        "logs": audit_log_repo.list_logs(limit=limit)
     }

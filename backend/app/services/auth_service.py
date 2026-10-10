@@ -97,6 +97,16 @@ class AuthService:
             logger.warning(f"Invalid session token: {e}")
             return None
 
+    def generate_email_verification_token(self, email: str) -> str:
+        return self.serializer.dumps({"email": email.strip().lower()}, salt="email-verification")
+
+    def verify_email_verification_token(self, token: str, max_age: int = 86400) -> Optional[str]:
+        try:
+            data = self.serializer.loads(token, salt="email-verification", max_age=max_age)
+            return data.get("email")
+        except Exception:
+            return None
+
     def register_user(
         self, 
         name: str, 

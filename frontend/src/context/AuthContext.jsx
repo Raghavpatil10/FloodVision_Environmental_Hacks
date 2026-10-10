@@ -66,14 +66,25 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const verifyEmail = async (token = null) => {
+    const payload = token ? { token } : {};
+    const res = await axios.post(`${API_BASE_URL}/api/auth/verify-email`, payload);
+    if (res.data && res.data.user) {
+      setUser(res.data.user);
+    }
+    return res.data;
+  };
+
   const value = {
     user,
     loading,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
+    isEmailVerified: !!user?.email_verified,
     login,
     register,
     logout,
+    verifyEmail,
     checkSession
   };
 
