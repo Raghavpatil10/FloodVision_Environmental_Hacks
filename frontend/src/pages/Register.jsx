@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 import { 
   Waves, 
   User, 
@@ -82,6 +83,11 @@ export default function Register() {
   return (
     <div style={{ maxWidth: '540px', margin: '40px auto 60px auto', padding: '0 16px' }}>
       
+      {/* Top Left Theme-Consistent Back Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
+        <BackButton to="/" label="Back to Home" />
+      </div>
+
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '28px' }}>
         <div style={{

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import BackButton from '../components/BackButton';
 import { 
   Navigation, 
   MapPin, 
@@ -193,6 +194,11 @@ export default function RoutePlanner() {
 
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
+      {/* Top Left Theme-Consistent Back Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
+        <BackButton to="/" label="Back to Home" />
+      </div>
+
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',

@@ -31,8 +31,14 @@ class AdminRequestRepository:
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     reason TEXT NOT NULL,
+                    organization TEXT DEFAULT '',
+                    designation TEXT DEFAULT '',
+                    official_email TEXT,
+                    requested_region TEXT DEFAULT '',
+                    supporting_evidence TEXT,
                     status TEXT NOT NULL DEFAULT 'pending',
                     reviewer_id TEXT,
+                    reviewed_by TEXT,
                     reviewed_at TEXT,
                     review_note TEXT,
                     created_at TEXT NOT NULL,
@@ -40,6 +46,21 @@ class AdminRequestRepository:
                     FOREIGN KEY(reviewer_id) REFERENCES users(id)
                 );
             """)
+
+            # Dynamic migrations for missing columns
+            cursor = conn.execute("PRAGMA table_info(admin_requests)")
+            existing_cols = {row["name"] for row in cursor.fetchall()}
+            for col, col_def in [
+                ("organization", "TEXT DEFAULT ''"),
+                ("designation", "TEXT DEFAULT ''"),
+                ("official_email", "TEXT"),
+                ("requested_region", "TEXT DEFAULT ''"),
+                ("supporting_evidence", "TEXT"),
+                ("reviewed_by", "TEXT")
+            ]:
+                if col not in existing_cols:
+                    conn.execute(f"ALTER TABLE admin_requests ADD COLUMN {col} {col_def}")
+
             # Database constraint: Partial unique index prevents duplicate pending requests
             conn.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_requests_user_pending 
@@ -50,12 +71,19 @@ class AdminRequestRepository:
 
     def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
         d = dict(row)
+        reviewer = d.get("reviewer_id") or d.get("reviewed_by")
         return {
             "id": d["id"],
             "user_id": d["user_id"],
             "reason": d["reason"],
+            "organization": d.get("organization") or "",
+            "designation": d.get("designation") or "",
+            "official_email": d.get("official_email"),
+            "requested_region": d.get("requested_region") or "",
+            "supporting_evidence": d.get("supporting_evidence"),
             "status": d["status"],
-            "reviewer_id": d.get("reviewer_id"),
+            "reviewer_id": reviewer,
+            "reviewed_by": reviewer,
             "reviewed_at": d.get("reviewed_at"),
             "review_note": d.get("review_note"),
             "created_at": d["created_at"],
@@ -65,10 +93,24 @@ class AdminRequestRepository:
             "reviewer_name": d.get("reviewer_name")
         }
 
-    def create_request(self, user_id: str, reason: str) -> Dict[str, Any]:
+    def create_request(
+        self,
+        user_id: str,
+        reason: str,
+        organization: Optional[str] = "",
+        designation: Optional[str] = "",
+        official_email: Optional[str] = None,
+        requested_region: Optional[str] = "",
+        supporting_evidence: Optional[str] = None
+    ) -> Dict[str, Any]:
         req_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
         clean_reason = reason.strip()
+        clean_org = (organization or "").strip()
+        clean_desig = (designation or "").strip()
+        clean_email = official_email.strip().lower() if official_email else None
+        clean_region = (requested_region or "").strip()
+        clean_evidence = supporting_evidence.strip() if supporting_evidence else None
 
         with self._get_connection() as conn:
             # 1. Verify user exists and check role
@@ -77,7 +119,7 @@ class AdminRequestRepository:
             if not user:
                 raise KeyError("User account not found.")
 
-            if user["role"] == "admin":
+            if user["role"] in ("admin", "superadmin"):
                 raise ValueError("Account already possesses Administrator privileges.")
 
             if not user["email_verified"]:
@@ -94,19 +136,30 @@ class AdminRequestRepository:
             if pending:
                 raise ValueError("A pending admin access request is already under review for this account.")
 
-            # 3. Insert new request
+            # 3. Insert new request with all metadata
             try:
                 conn.execute(
                     """
-                    INSERT INTO admin_requests (id, user_id, reason, status, created_at)
-                    VALUES (?, ?, ?, 'pending', ?)
+                    INSERT INTO admin_requests (
+                        id, user_id, reason, organization, designation, official_email,
+                        requested_region, supporting_evidence, status, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
                     """,
-                    (req_id, user_id, clean_reason, now)
+                    (
+                        req_id, user_id, clean_reason, clean_org, clean_desig,
+                        clean_email, clean_region, clean_evidence, now
+                    )
                 )
 
                 # Record audit log
                 audit_id = str(uuid.uuid4())
-                details = json.dumps({"reason": clean_reason})
+                details = json.dumps({
+                    "reason": clean_reason,
+                    "organization": clean_org,
+                    "designation": clean_desig,
+                    "requested_region": clean_region
+                })
                 conn.execute(
                     """
                     INSERT INTO audit_logs (id, actor_id, action, target_user_id, details, timestamp)
@@ -120,19 +173,7 @@ class AdminRequestRepository:
                 logger.warning(f"Integrity error creating admin request: {e}")
                 raise ValueError("A pending admin access request already exists for this account.")
 
-        return {
-            "id": req_id,
-            "user_id": user_id,
-            "reason": clean_reason,
-            "status": "pending",
-            "reviewer_id": None,
-            "reviewed_at": None,
-            "review_note": None,
-            "created_at": now,
-            "user_name": user["name"],
-            "user_email": user["email"],
-            "user_role": user["role"]
-        }
+        return self.get_request_by_id(req_id)
 
     def get_user_requests(self, user_id: str) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
@@ -201,7 +242,11 @@ class AdminRequestRepository:
         request_id: str,
         reviewer_id: str,
         action: str,
-        note: Optional[str] = None
+        note: Optional[str] = None,
+        region_name: Optional[str] = None,
+        center_latitude: Optional[float] = None,
+        center_longitude: Optional[float] = None,
+        radius_km: Optional[float] = 5.0
     ) -> Dict[str, Any]:
         """
         Atomically reviews an admin application in a single database transaction:
@@ -210,6 +255,7 @@ class AdminRequestRepository:
         - Verifies applicant has email verified
         - Updates request status to 'approved' or 'rejected'
         - Updates user role to 'admin' if approved
+        - Automatically provisions geographic regional boundary if coordinates provided
         - Records audit log entry
         """
         clean_action = action.strip().lower()
@@ -260,10 +306,10 @@ class AdminRequestRepository:
             update_cur = conn.execute(
                 """
                 UPDATE admin_requests 
-                SET status = ?, reviewer_id = ?, reviewed_at = ?, review_note = ?
+                SET status = ?, reviewer_id = ?, reviewed_by = ?, reviewed_at = ?, review_note = ?
                 WHERE id = ? AND status = 'pending'
                 """,
-                (new_status, reviewer_id, now, clean_note, request_id)
+                (new_status, reviewer_id, reviewer_id, now, clean_note, request_id)
             )
 
             if update_cur.rowcount == 0:
@@ -283,7 +329,8 @@ class AdminRequestRepository:
                 "action": clean_action,
                 "note": clean_note,
                 "applicant_email": applicant["email"],
-                "applicant_name": applicant["name"]
+                "applicant_name": applicant["name"],
+                "region_assigned": bool(center_latitude is not None and center_longitude is not None)
             })
             conn.execute(
                 """
@@ -294,6 +341,19 @@ class AdminRequestRepository:
             )
 
             conn.commit()
+
+        # 8. If approved and coordinates provided, assign regional boundary
+        if clean_action == "approve" and center_latitude is not None and center_longitude is not None:
+            from .region_repo import region_repo
+            assigned_name = (region_name or req["requested_region"] or f"{applicant['name']}'s Region").strip()
+            region_repo.assign_region(
+                admin_user_id=target_user_id,
+                region_name=assigned_name,
+                center_latitude=float(center_latitude),
+                center_longitude=float(center_longitude),
+                radius_km=float(radius_km if radius_km is not None else 5.0),
+                is_active=True
+            )
 
         return self.get_request_by_id(request_id)
 

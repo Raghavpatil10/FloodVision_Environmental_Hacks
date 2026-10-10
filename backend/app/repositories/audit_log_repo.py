@@ -87,6 +87,9 @@ class AuditLogRepository:
             "timestamp": now
         }
 
+    # Alias for convenience
+    record_log = record
+
     def list_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
             cur = conn.execute(

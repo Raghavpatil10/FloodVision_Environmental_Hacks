@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 import { 
   Camera, 
   UploadCloud, 
@@ -139,7 +140,10 @@ export default function Analyze() {
   const StatusIcon = statusConfig ? statusConfig.icon : null;
 
   return (
-    <div style={{ maxWidth: '820px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '820px', margin: '0 auto', padding: '0 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
+        <BackButton to="/" label="Back to Home" />
+      </div>
       <div className="glass-card">
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>

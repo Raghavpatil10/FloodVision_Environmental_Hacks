@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 import { 
   User, 
   Camera, 
@@ -12,13 +13,17 @@ import {
   AlertCircle,
   Clock,
   ShieldCheck,
-  ShieldAlert,
   Calendar,
   Send,
   RefreshCw,
   MailCheck,
   FileText,
-  AlertTriangle
+  AlertTriangle,
+  Building,
+  Briefcase,
+  Mail,
+  Compass,
+  Link as LinkIcon
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -28,7 +33,16 @@ export default function UserDashboard() {
   const navigate = useNavigate();
 
   // Admin Request form state
-  const [reason, setReason] = useState('');
+  const [formData, setFormData] = useState({
+    fullName: user?.name || '',
+    organization: '',
+    designation: '',
+    officialEmail: '',
+    requestedRegion: '',
+    reason: '',
+    supportingEvidence: ''
+  });
+
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState(null);
   const [requestSuccess, setRequestSuccess] = useState(null);
@@ -43,6 +57,7 @@ export default function UserDashboard() {
 
   useEffect(() => {
     if (user) {
+      setFormData(prev => ({ ...prev, fullName: user.name || '' }));
       fetchMyRequests();
     }
   }, [user]);
@@ -78,24 +93,52 @@ export default function UserDashboard() {
     }
   };
 
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleRequestSubmit = async (e) => {
     e.preventDefault();
     setRequestError(null);
     setRequestSuccess(null);
 
-    const cleanReason = reason.trim();
+    const cleanReason = formData.reason.trim();
     if (cleanReason.length < 10) {
       setRequestError("Please provide a detailed justification (minimum 10 characters).");
+      return;
+    }
+
+    if (!formData.organization.trim()) {
+      setRequestError("Please specify your organization or department.");
+      return;
+    }
+
+    if (!formData.requestedRegion.trim()) {
+      setRequestError("Please specify the requested region, city, or geographic area.");
       return;
     }
 
     setSubmitting(true);
     try {
       const res = await axios.post(`${API_BASE_URL}/api/admin-requests`, {
-        reason: cleanReason
+        reason: cleanReason,
+        organization: formData.organization.trim(),
+        designation: formData.designation.trim(),
+        official_email: formData.officialEmail.trim() || null,
+        requested_region: formData.requestedRegion.trim(),
+        supporting_evidence: formData.supportingEvidence.trim() || null
       });
-      setRequestSuccess(res.data.message || "Application submitted successfully!");
-      setReason('');
+      setRequestSuccess(res.data.message || "Application submitted successfully! It is now pending superadmin review.");
+      setFormData({
+        fullName: user?.name || '',
+        organization: '',
+        designation: '',
+        officialEmail: '',
+        requestedRegion: '',
+        reason: '',
+        supportingEvidence: ''
+      });
       fetchMyRequests();
     } catch (err) {
       const detail = err.response?.data?.detail;
@@ -110,14 +153,17 @@ export default function UserDashboard() {
     navigate('/login', { replace: true });
   };
 
-  // Check if there is currently a pending application
   const pendingRequest = myRequests.find(r => r.status === 'pending');
-  const hasApprovedRequest = myRequests.some(r => r.status === 'approved');
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
 
   return (
     <div style={{ maxWidth: '880px', margin: '30px auto 60px auto', padding: '0 16px' }}>
       
+      {/* Top Left Theme-Consistent Back Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
+        <BackButton to="/" label="Back to Home" />
+      </div>
+
       {/* User Welcome Card */}
       <div className="glass-card" style={{ marginBottom: '24px', background: '#ffffff', border: '3px solid #111111', boxShadow: '6px 6px 0px #111111' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
@@ -126,7 +172,7 @@ export default function UserDashboard() {
               width: 52,
               height: 52,
               borderRadius: '12px',
-              background: isAdmin ? '#ef4444' : '#4ADE80',
+              background: user?.role === 'superadmin' ? '#9333ea' : (isAdmin ? '#ef4444' : '#4ADE80'),
               border: '2px solid #111111',
               boxShadow: '3px 3px 0px #111111',
               display: 'flex',
@@ -141,16 +187,16 @@ export default function UserDashboard() {
                   Welcome, {user?.name}
                 </h2>
                 <span style={{
-                  background: isAdmin ? '#fee2e2' : '#dcfce7',
-                  color: isAdmin ? '#b91c1c' : '#166534',
-                  border: `1.5px solid ${isAdmin ? '#b91c1c' : '#166534'}`,
+                  background: user?.role === 'superadmin' ? '#f3e8ff' : (isAdmin ? '#fee2e2' : '#dcfce7'),
+                  color: user?.role === 'superadmin' ? '#7e22ce' : (isAdmin ? '#b91c1c' : '#166534'),
+                  border: `1.5px solid ${user?.role === 'superadmin' ? '#7e22ce' : (isAdmin ? '#b91c1c' : '#166534')}`,
                   borderRadius: '12px',
                   padding: '2px 8px',
                   fontSize: '0.72rem',
                   fontWeight: 800,
                   textTransform: 'uppercase'
                 }}>
-                  {isAdmin ? 'Administrator' : 'Citizen Reporter'}
+                  {user?.role}
                 </span>
               </div>
               <div style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -260,33 +306,7 @@ export default function UserDashboard() {
         </div>
       )}
 
-      {/* Account Info Pill */}
-      <div style={{
-        padding: '14px 20px',
-        borderRadius: '8px',
-        background: '#eff6ff',
-        border: '2px solid #38bdf8',
-        boxShadow: '3px 3px 0px #38bdf8',
-        marginBottom: '28px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '12px',
-        fontSize: '0.88rem',
-        color: '#0369a1'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <CheckCircle2 size={18} />
-          <span><strong>Security Clearance:</strong> Authenticated session active. Role: {user?.role.toUpperCase()}.</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#0284c7' }}>
-          <Calendar size={14} />
-          <span>Member since {new Date(user?.created_at).toLocaleDateString()}</span>
-        </div>
-      </div>
-
-      {/* SECTION 4: Request Admin Access Workflow */}
+      {/* SECTION: Request Admin Access Workflow */}
       <div className="glass-card" style={{ marginBottom: '32px', padding: '28px', background: '#ffffff', border: '3px solid #111111', boxShadow: '6px 6px 0px #111111' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
           <div style={{
@@ -304,10 +324,10 @@ export default function UserDashboard() {
           </div>
           <div>
             <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>
-              Municipal Administrator Access
+              Request Regional Administrator Access
             </h3>
             <p style={{ margin: '2px 0 0 0', color: '#64748b', fontSize: '0.85rem' }}>
-              Traffic wardens and municipal responders can request administrative clearance to access the triage dashboard.
+              Traffic wardens, emergency responders, and civic officers can request administrative clearance for an assigned geographic sector.
             </p>
           </div>
         </div>
@@ -327,7 +347,7 @@ export default function UserDashboard() {
           }}>
             <CheckCircle2 size={20} color="#16a34a" />
             <div>
-              <strong>Administrator Clearance Active:</strong> Your account is authorized to review incident reports and approve access requests.
+              <strong>Administrator Clearance Active:</strong> Your account is authorized as a Regional Administrator. You can upload and manage flood images in your assigned geographic region.
             </div>
           </div>
         ) : pendingRequest ? (
@@ -342,10 +362,10 @@ export default function UserDashboard() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '6px' }}>
               <Clock size={18} color="#d97706" />
-              <span>Application Under Municipal Review</span>
+              <span>Application Under Superadmin Review</span>
             </div>
             <p style={{ margin: '0 0 10px 0', fontSize: '0.85rem', color: '#78350f' }}>
-              You submitted an application on {new Date(pendingRequest.created_at).toLocaleString()}. You cannot submit duplicate applications while one is pending review.
+              You submitted an application on {new Date(pendingRequest.created_at).toLocaleString()} for region <strong>"{pendingRequest.requested_region || 'Unspecified'}"</strong>. You cannot submit duplicate applications while one is pending review.
             </p>
             <div style={{
               background: '#fef3c7',
@@ -353,14 +373,14 @@ export default function UserDashboard() {
               borderRadius: '6px',
               padding: '10px 14px',
               fontSize: '0.84rem',
-              fontStyle: 'italic',
               color: '#451a03'
             }}>
-              "{pendingRequest.reason}"
+              <div><strong>Organization:</strong> {pendingRequest.organization || 'N/A'} ({pendingRequest.designation || 'N/A'})</div>
+              <div style={{ marginTop: '4px' }}><strong>Reason:</strong> "{pendingRequest.reason}"</div>
             </div>
           </div>
         ) : (
-          /* Application Form */
+          /* Comprehensive Application Form */
           <div>
             {requestError && (
               <div style={{
@@ -414,42 +434,182 @@ export default function UserDashboard() {
               </div>
             ) : (
               <form onSubmit={handleRequestSubmit}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+                  {/* Full Name */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      name="fullName"
+                      required
+                      value={formData.fullName}
+                      onChange={handleChange}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        border: '2px solid #111111',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        background: '#f8fafc'
+                      }}
+                    />
+                  </div>
+
+                  {/* Organization */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                      Organization / Department *
+                    </label>
+                    <input
+                      type="text"
+                      name="organization"
+                      required
+                      placeholder="e.g. City Traffic Police, Municipal Disaster Mgmt"
+                      value={formData.organization}
+                      onChange={handleChange}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        border: '2px solid #111111',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem',
+                        background: '#ffffff'
+                      }}
+                    />
+                  </div>
+
+                  {/* Designation */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                      Designation / Role
+                    </label>
+                    <input
+                      type="text"
+                      name="designation"
+                      placeholder="e.g. Chief Warden, Area Inspector"
+                      value={formData.designation}
+                      onChange={handleChange}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        border: '2px solid #111111',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem',
+                        background: '#ffffff'
+                      }}
+                    />
+                  </div>
+
+                  {/* Official Email */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                      Official Email (if applicable)
+                    </label>
+                    <input
+                      type="email"
+                      name="officialEmail"
+                      placeholder="e.g. officer@citygov.gov.in"
+                      value={formData.officialEmail}
+                      onChange={handleChange}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        border: '2px solid #111111',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem',
+                        background: '#ffffff'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Requested Region */}
                 <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '6px', color: '#0f172a' }}>
-                    Reason for Requesting Administrator Access
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                    Requested Region / Locality / Sector *
+                  </label>
+                  <input
+                    type="text"
+                    name="requestedRegion"
+                    required
+                    placeholder="e.g. Bangalore South - Koramangala & HSR Ward"
+                    value={formData.requestedRegion}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      border: '2px solid #111111',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem',
+                      background: '#ffffff'
+                    }}
+                  />
+                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                    The superadmin will assign an exact circular or polygonal geographic boundary based on this region.
+                  </span>
+                </div>
+
+                {/* Reason */}
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                    Reason for Requesting Administrator Access *
                   </label>
                   <textarea
                     required
                     rows={3}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Describe your role (e.g. Traffic Warden District 4, Emergency Response Coordinator) and why you need access to the protected municipal triage dashboard..."
+                    name="reason"
+                    value={formData.reason}
+                    onChange={handleChange}
+                    placeholder="Describe your jurisdiction and emergency responsibilities for floodwater management in this region..."
                     style={{
                       width: '100%',
-                      padding: '12px 14px',
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: '0.92rem',
-                      fontWeight: 500,
+                      padding: '10px 12px',
+                      fontFamily: 'inherit',
+                      fontSize: '0.9rem',
                       border: '2px solid #111111',
                       borderRadius: '6px',
-                      background: '#f8fafc',
-                      outline: 'none',
+                      background: '#ffffff',
                       resize: 'vertical'
                     }}
                   />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
                     <span>Minimum 10 characters required.</span>
-                    <span>{reason.length} / 1000 characters</span>
+                    <span>{formData.reason.length} / 1000 characters</span>
                   </div>
+                </div>
+
+                {/* Supporting Authorization Evidence */}
+                <div style={{ marginBottom: '18px' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px', color: '#0f172a' }}>
+                    Supporting Authorization Evidence / ID Verification Link
+                  </label>
+                  <input
+                    type="text"
+                    name="supportingEvidence"
+                    placeholder="e.g. Officer Badge #, Municipal portal verification link, or departmental reference"
+                    value={formData.supportingEvidence}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px',
+                      border: '2px solid #111111',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem',
+                      background: '#ffffff'
+                    }}
+                  />
                 </div>
 
                 <button
                   type="submit"
-                  disabled={submitting || reason.trim().length < 10}
+                  disabled={submitting || formData.reason.trim().length < 10 || !formData.organization.trim() || !formData.requestedRegion.trim()}
                   className="btn btn-primary"
                   style={{
-                    padding: '10px 20px',
-                    fontSize: '0.9rem',
+                    padding: '10px 22px',
+                    fontSize: '0.92rem',
                     fontWeight: 800,
                     background: '#0ea5e9',
                     color: '#ffffff',
@@ -465,7 +625,7 @@ export default function UserDashboard() {
                   ) : (
                     <>
                       <Send size={15} />
-                      <span>Submit Admin Access Application</span>
+                      <span>Submit Regional Admin Request</span>
                     </>
                   )}
                 </button>
@@ -485,7 +645,8 @@ export default function UserDashboard() {
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #111111', textAlign: 'left' }}>
                     <th style={{ padding: '8px 12px', fontWeight: 800 }}>Date</th>
-                    <th style={{ padding: '8px 12px', fontWeight: 800 }}>Reason</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 800 }}>Requested Region</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 800 }}>Organization</th>
                     <th style={{ padding: '8px 12px', fontWeight: 800 }}>Status</th>
                     <th style={{ padding: '8px 12px', fontWeight: 800 }}>Review Notes</th>
                   </tr>
@@ -496,8 +657,11 @@ export default function UserDashboard() {
                       <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', color: '#64748b' }}>
                         {new Date(req.created_at).toLocaleDateString()}
                       </td>
-                      <td style={{ padding: '10px 12px', maxWidth: '300px', color: '#1e293b' }}>
-                        {req.reason}
+                      <td style={{ padding: '10px 12px', fontWeight: 700, color: '#0f172a' }}>
+                        {req.requested_region || 'Standard Sector'}
+                      </td>
+                      <td style={{ padding: '10px 12px', color: '#475569' }}>
+                        {req.organization ? `${req.organization} (${req.designation || 'Staff'})` : 'Individual'}
                       </td>
                       <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                         <span style={{
@@ -514,7 +678,7 @@ export default function UserDashboard() {
                         </span>
                       </td>
                       <td style={{ padding: '10px 12px', color: '#64748b', fontStyle: req.review_note ? 'italic' : 'normal' }}>
-                        {req.review_note || (req.status === 'pending' ? 'Pending review by municipal admin' : 'None')}
+                        {req.review_note || (req.status === 'pending' ? 'Pending superadmin review' : 'No notes provided')}
                       </td>
                     </tr>
                   ))}

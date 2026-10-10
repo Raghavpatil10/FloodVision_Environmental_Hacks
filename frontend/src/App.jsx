@@ -10,6 +10,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import RegionalUpload from './pages/RegionalUpload';
 import AccessDenied from './pages/AccessDenied';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -17,7 +18,10 @@ function NavbarAuth() {
   const { user, logout } = useAuth();
 
   if (user) {
-    const dashboardPath = user.role === 'admin' ? '/admin/dashboard' : '/user/dashboard';
+    const isAnyAdmin = user.role === 'admin' || user.role === 'superadmin';
+    const dashboardPath = isAnyAdmin ? '/admin/dashboard' : '/user/dashboard';
+    const badgeColor = user.role === 'superadmin' ? '#9333ea' : (user.role === 'admin' ? '#ef4444' : '#10b981');
+
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Link
@@ -41,7 +45,7 @@ function NavbarAuth() {
           <LayoutDashboard size={14} color="#0284c7" />
           <span>{user.name.split(' ')[0]}</span>
           <span style={{
-            background: user.role === 'admin' ? '#ef4444' : '#10b981',
+            background: badgeColor,
             color: '#ffffff',
             padding: '1px 6px',
             borderRadius: '10px',
@@ -163,18 +167,28 @@ function App() {
               <Route 
                 path="/user/dashboard" 
                 element={
-                  <ProtectedRoute allowedRoles={['user', 'admin']}>
+                  <ProtectedRoute allowedRoles={['user', 'admin', 'superadmin']}>
                     <UserDashboard />
                   </ProtectedRoute>
                 } 
               />
 
-              {/* Protected Admin Dashboard */}
+              {/* Protected Regional Admin Dashboard */}
               <Route 
                 path="/admin/dashboard" 
                 element={
-                  <ProtectedRoute allowedRoles={['admin']}>
+                  <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
                     <AdminDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+
+              {/* Protected Regional Image Upload Form */}
+              <Route 
+                path="/admin/upload" 
+                element={
+                  <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
+                    <RegionalUpload />
                   </ProtectedRoute>
                 } 
               />
@@ -187,7 +201,7 @@ function App() {
               <ShieldCheck size={16} color="#06b6d4" />
               <span>Built for Environmental Hacks 2026 | Track 02: Heat & Water</span>
             </div>
-            <div>Computer Vision Waterlogging Gauge & Edge-Calibrated Depth Analytics</div>
+            <div>Computer Vision Waterlogging Gauge & Regional Spatial Flood Management</div>
           </footer>
         </div>
       </BrowserRouter>

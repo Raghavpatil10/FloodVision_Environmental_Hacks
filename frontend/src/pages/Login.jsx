@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import BackButton from '../components/BackButton';
 import { 
   Waves, 
   Mail, 
@@ -92,6 +93,11 @@ export default function Login() {
   return (
     <div style={{ maxWidth: '520px', margin: '40px auto 60px auto', padding: '0 16px' }}>
       
+      {/* Top Left Theme-Consistent Back Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
+        <BackButton to="/" label="Back to Home" />
+      </div>
+
       {/* Brand & Mission Banner */}
       <div style={{ textAlign: 'center', marginBottom: '28px' }}>
         <div style={{

@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
+import BackButton from '../components/BackButton';
 import { 
   AlertTriangle, 
   ShieldAlert, 
@@ -137,6 +138,11 @@ export default function MapDashboard() {
 
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
+      {/* Top Left Theme-Consistent Back Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
+        <BackButton to="/" label="Back to Home" />
+      </div>
+
       {/* Header Bar */}
       <div className="glass-card" style={{ marginBottom: '20px', padding: '18px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>

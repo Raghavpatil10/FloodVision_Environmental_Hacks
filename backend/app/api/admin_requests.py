@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any, List, Optional
 from ..schemas.admin_request import CreateAdminRequest, ReviewAdminRequest, AdminRequestResponse
-from ..api.deps import get_current_user, require_verified_user, require_admin
+from ..api.deps import get_current_user, require_verified_user, require_superadmin
 from ..repositories.admin_request_repo import admin_request_repo
 
 router = APIRouter(prefix="/admin-requests", tags=["admin-requests"])
@@ -15,10 +15,10 @@ def submit_admin_request(
     Submits an emergency administrative access request.
     Strictly enforces:
     - User must be authenticated and email-verified
-    - User cannot already be an administrator (HTTP 400)
+    - User cannot already be an administrator or superadmin (HTTP 400)
     - User cannot submit duplicate pending applications (HTTP 409)
     """
-    if current_user.get("role") == "admin":
+    if current_user.get("role") in ("admin", "superadmin"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Account already possesses Administrator privileges."
@@ -27,7 +27,12 @@ def submit_admin_request(
     try:
         req = admin_request_repo.create_request(
             user_id=current_user["id"],
-            reason=payload.reason
+            reason=payload.reason,
+            organization=payload.organization,
+            designation=payload.designation,
+            official_email=payload.official_email,
+            requested_region=payload.requested_region,
+            supporting_evidence=payload.supporting_evidence
         )
         return {
             "message": "Admin access request submitted successfully. It is now pending municipal review.",
@@ -71,10 +76,10 @@ def get_my_admin_requests(current_user: Dict[str, Any] = Depends(get_current_use
 @router.get("")
 def list_admin_requests(
     status: Optional[str] = None,
-    current_admin: Dict[str, Any] = Depends(require_admin)
+    current_superadmin: Dict[str, Any] = Depends(require_superadmin)
 ):
     """
-    Administrator-only: Lists all submitted applications with applicant metadata.
+    Superadmin-only: Lists all submitted applications with applicant metadata.
     Supports optional status filtering (e.g. ?status=pending).
     """
     requests = admin_request_repo.get_all_requests(status_filter=status)
@@ -87,23 +92,27 @@ def list_admin_requests(
 def review_admin_request(
     request_id: str,
     payload: ReviewAdminRequest,
-    current_admin: Dict[str, Any] = Depends(require_admin)
+    current_superadmin: Dict[str, Any] = Depends(require_superadmin)
 ):
     """
-    Administrator-only: Atomically reviews and approves or rejects an access request.
+    Superadmin-only: Atomically reviews and approves or rejects an access request.
     Strictly enforces:
-    - Reviewer must be an authenticated administrator
+    - Reviewer must be an authenticated superadministrator
     - Reviewer CANNOT approve their own request (HTTP 403)
     - Application must be in 'pending' status (HTTP 409 if already reviewed)
     - Concurrent requests cannot process the same application twice (HTTP 409)
-    - Atomic database transaction updating role, request status, and audit log
+    - Atomic database transaction updating role, regional assignment, and audit log
     """
     try:
         updated_request = admin_request_repo.review_request(
             request_id=request_id,
-            reviewer_id=current_admin["id"],
+            reviewer_id=current_superadmin["id"],
             action=payload.action,
-            note=payload.note
+            note=payload.note,
+            region_name=payload.region_name,
+            center_latitude=payload.center_latitude,
+            center_longitude=payload.center_longitude,
+            radius_km=payload.radius_km
         )
         return {
             "message": f"Application successfully marked as '{updated_request['status']}'.",
