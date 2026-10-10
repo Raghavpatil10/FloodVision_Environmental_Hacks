@@ -18,9 +18,9 @@ from app.repositories.audit_log_repo import audit_log_repo
 
 def bootstrap_initial_admin(target_email: Optional[str] = None) -> Dict[str, Any]:
     """
-    Secure One-Time Initial Superadmin Bootstrap:
-    - Promotes only the explicitly configured owner account to 'superadmin'
-    - Refuses bootstrap if a superadmin already exists
+    Secure One-Time Initial Administrator Bootstrap:
+    - Promotes only the explicitly configured owner account
+    - Refuses bootstrap if an administrator already exists
     - Enforces email verification on the owner account
     - Uses an atomic transaction to prevent concurrent promotions
     - Records the initial promotion in the audit log
@@ -37,12 +37,12 @@ def bootstrap_initial_admin(target_email: Optional[str] = None) -> Dict[str, Any
 
     try:
         with conn:
-            # 1. Exclusive check for existing superadministrators within transaction
-            cur = conn.execute("SELECT COUNT(*) as count FROM users WHERE role = 'superadmin'")
+            # 1. Exclusive check for existing administrators within transaction
+            cur = conn.execute("SELECT COUNT(*) as count FROM users WHERE role = 'admin'")
             row = cur.fetchone()
-            superadmin_count = row["count"] if row else 0
-            if superadmin_count > 0:
-                raise PermissionError("Bootstrap refused: At least one superadministrator account already exists in the database.")
+            admin_count = row["count"] if row else 0
+            if admin_count > 0:
+                raise PermissionError("Bootstrap refused: At least one administrator account already exists in the database.")
 
             # 2. Check if the target owner account exists
             cur = conn.execute("SELECT * FROM users WHERE email = ?", (email,))
@@ -60,14 +60,14 @@ def bootstrap_initial_admin(target_email: Optional[str] = None) -> Dict[str, Any
                     "Please verify your email address before running the bootstrap command."
                 )
 
-            # 4. Atomic role upgrade to 'superadmin'
+            # 4. Atomic role upgrade to 'admin'
             user_id = user["id"]
             update_cur = conn.execute(
-                "UPDATE users SET role = 'superadmin', updated_at = ? WHERE id = ?",
+                "UPDATE users SET role = 'admin', updated_at = ? WHERE id = ? AND role = 'user'",
                 (now, user_id)
             )
             if update_cur.rowcount == 0:
-                raise RuntimeError("Failed to update user role to superadministrator.")
+                raise RuntimeError("Failed to update user role to administrator.")
 
             # 5. Insert audit log entry
             audit_id = str(uuid.uuid4())
@@ -75,33 +75,33 @@ def bootstrap_initial_admin(target_email: Optional[str] = None) -> Dict[str, Any
                 "email": email,
                 "name": user["name"],
                 "trigger": "cli_bootstrap",
-                "notes": "First-time secure superadmin initialization"
+                "notes": "First-time secure system initialization"
             })
             conn.execute(
                 """
                 INSERT INTO audit_logs (id, actor_id, action, target_user_id, details, timestamp)
-                VALUES (?, ?, 'initial_superadmin_bootstrap', ?, ?, ?)
+                VALUES (?, ?, 'initial_admin_bootstrap', ?, ?, ?)
                 """,
                 (audit_id, user_id, user_id, details, now)
             )
 
-        print(f"✅ Success: Initial superadmin '{email}' (ID: {user_id}) promoted and audit log recorded.")
+        print(f"✅ Success: Initial administrator '{email}' (ID: {user_id}) promoted and audit log recorded.")
         return {
             "status": "success",
             "user_id": user_id,
             "email": email,
             "name": user["name"],
-            "role": "superadmin"
+            "role": "admin"
         }
     finally:
         conn.close()
 
 def main():
     print("=" * 65)
-    print(" FloodVision: One-Time Initial Superadmin Bootstrap")
+    print(" FloodVision: One-Time Initial Administrator Bootstrap")
     print("=" * 65)
     target = os.getenv("ADMIN_INITIAL_EMAIL") or settings.ADMIN_INITIAL_EMAIL
-    print(f"Target Initial Superadmin Email: {target}")
+    print(f"Target Initial Admin Email: {target}")
 
     try:
         result = bootstrap_initial_admin()

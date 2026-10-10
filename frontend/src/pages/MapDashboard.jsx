@@ -3,15 +3,14 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import L from 'leaflet';
-import BackButton from '../components/BackButton';
-import { 
-  AlertTriangle, 
-  ShieldAlert, 
-  CheckCircle2, 
-  RefreshCw, 
-  Activity, 
-  Clock, 
-  MapPin, 
+import {
+  AlertTriangle,
+  ShieldAlert,
+  CheckCircle2,
+  RefreshCw,
+  Activity,
+  Clock,
+  MapPin,
   Layers,
   ShieldCheck,
   Radio,
@@ -138,19 +137,14 @@ export default function MapDashboard() {
 
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
-      {/* Top Left Theme-Consistent Back Button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
-        <BackButton to="/" label="Back to Home" />
-      </div>
-
       {/* Header Bar */}
       <div className="glass-card" style={{ marginBottom: '20px', padding: '18px 24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <div style={{
-                width: 32, height: 32, borderRadius: '8px', 
-                background: 'rgba(16, 185, 129, 0.15)', display: 'flex', 
+                width: 32, height: 32, borderRadius: '8px',
+                background: 'rgba(16, 185, 129, 0.15)', display: 'flex',
                 alignItems: 'center', justifyContent: 'center'
               }}>
                 <Radio size={18} color="#34d399" />
@@ -189,8 +183,8 @@ export default function MapDashboard() {
               <strong>{safeCount}</strong>
             </div>
 
-            <button 
-              onClick={fetchIncidents} 
+            <button
+              onClick={fetchIncidents}
               disabled={loading}
               className="btn btn-secondary"
               style={{ padding: '7px 14px', fontSize: '0.84rem' }}
@@ -204,10 +198,10 @@ export default function MapDashboard() {
       </div>
 
       {/* Main Map Container */}
-      <div style={{ 
-        position: 'relative', 
-        height: '75vh', 
-        borderRadius: 'var(--radius-lg)', 
+      <div style={{
+        position: 'relative',
+        height: '75vh',
+        borderRadius: 'var(--radius-lg)',
         overflow: 'hidden',
         border: '1px solid var(--border-glass)',
         boxShadow: 'var(--shadow-md)'
@@ -284,9 +278,9 @@ export default function MapDashboard() {
         </div>
 
         {/* Leaflet Map with 100% Free OpenStreetMap Tiles (No API key required) */}
-        <MapContainer 
-          center={[19.0760, 72.8777]} 
-          zoom={12} 
+        <MapContainer
+          center={[19.0760, 72.8777]}
+          zoom={12}
           className={tileMode === 'dark' ? 'map-dark-mode' : ''}
           style={{ height: '100%', width: '100%' }}
         >
@@ -303,21 +297,21 @@ export default function MapDashboard() {
             const isCritical = inc.estimated_depth_cm >= 30 || inc.sms_alert_sent || inc.risk_level === 'critical';
 
             return (
-              <Marker 
-                key={inc.incident_id} 
+              <Marker
+                key={inc.incident_id}
                 position={[inc.latitude, inc.longitude]}
                 icon={createCustomIcon(meta, isCritical)}
               >
                 <Popup>
                   <div style={{ minWidth: '220px', fontFamily: 'var(--font-sans)', color: '#f8fafc' }}>
                     {/* Status Header Badge */}
-                    <div style={{ 
-                      display: 'inline-flex', 
-                      alignItems: 'center', 
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
                       gap: '5px',
-                      padding: '3px 8px', 
-                      borderRadius: '12px', 
-                      fontSize: '0.72rem', 
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.72rem',
                       fontWeight: 700,
                       background: meta.bg,
                       color: meta.color,
@@ -366,9 +360,9 @@ export default function MapDashboard() {
                         <strong style={{ fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{inc.safety_score}/100</strong>
                       </div>
                       <div style={{ height: '4px', background: 'rgba(255, 255, 255, 0.1)', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ 
-                          width: `${Math.max(0, Math.min(100, inc.safety_score))}%`, 
-                          height: '100%', 
+                        <div style={{
+                          width: `${Math.max(0, Math.min(100, inc.safety_score))}%`,
+                          height: '100%',
                           background: inc.safety_score > 60 ? '#10b981' : (inc.safety_score > 30 ? '#f59e0b' : '#ef4444')
                         }}></div>
                       </div>
@@ -389,10 +383,10 @@ export default function MapDashboard() {
                     {/* Annotated Visual Proof thumbnail if available */}
                     {inc.annotated_image_url && (
                       <div style={{ marginTop: '10px', borderRadius: '6px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.15)' }}>
-                        <img 
-                          src={inc.annotated_image_url} 
-                          alt="Flood Proof Visual" 
-                          style={{ width: '100%', maxHeight: '130px', objectFit: 'cover', display: 'block' }} 
+                        <img
+                          src={inc.annotated_image_url}
+                          alt="Flood Proof Visual"
+                          style={{ width: '100%', maxHeight: '130px', objectFit: 'cover', display: 'block' }}
                         />
                       </div>
                     )}

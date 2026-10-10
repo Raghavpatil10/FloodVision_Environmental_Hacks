@@ -95,9 +95,10 @@ class UserRepository:
         now = datetime.now(timezone.utc).isoformat()
         clean_email = email.strip().lower()
         clean_name = name.strip()
-        role_lower = role.lower()
-        if role_lower in ("superadmin", "admin", "user"):
-            safe_role = role_lower
+        if role.lower() == "superadmin":
+            safe_role = "superadmin"
+        elif role.lower() == "admin":
+            safe_role = "admin"
         else:
             safe_role = "user"
         active_int = 1 if is_active else 0
@@ -162,8 +163,7 @@ class UserRepository:
 
     def update_role(self, user_id: str, role: str) -> bool:
         now = datetime.now(timezone.utc).isoformat()
-        role_lower = role.lower()
-        clean_role = role_lower if role_lower in ("superadmin", "admin", "user") else "user"
+        clean_role = "admin" if role.lower() == "admin" else "user"
         with self._get_connection() as conn:
             cursor = conn.execute(
                 "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
@@ -174,12 +174,7 @@ class UserRepository:
 
     def get_admins_count(self) -> int:
         with self._get_connection() as conn:
-            row = conn.execute("SELECT COUNT(*) FROM users WHERE role IN ('admin', 'superadmin')").fetchone()
-            return row[0] if row else 0
-
-    def get_superadmins_count(self) -> int:
-        with self._get_connection() as conn:
-            row = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'superadmin'").fetchone()
+            row = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()
             return row[0] if row else 0
 
     def get_by_email(self, email: str) -> Optional[Dict[str, Any]]:
@@ -225,10 +220,9 @@ class UserRepository:
     def count_users(self) -> Dict[str, int]:
         with self._get_connection() as conn:
             total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-            superadmins = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'superadmin'").fetchone()[0]
             admins = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()[0]
             users = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'user'").fetchone()[0]
-            return {"total": total, "superadmins": superadmins, "admins": admins, "users": users}
+            return {"total": total, "admins": admins, "users": users}
 
     def list_users(self, limit: int = 50) -> List[Dict[str, Any]]:
         with self._get_connection() as conn:
@@ -237,5 +231,10 @@ class UserRepository:
                 (limit,)
             )
             return [self._row_to_dict(r) for r in cur.fetchall()]
+
+    def has_superadmin(self) -> bool:
+        with self._get_connection() as conn:
+            cnt = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'superadmin'").fetchone()[0]
+            return cnt > 0
 
 user_repo = UserRepository()

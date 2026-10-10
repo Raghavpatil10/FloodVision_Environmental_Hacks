@@ -2,16 +2,15 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import BackButton from '../components/BackButton';
-import { 
-  Camera, 
-  UploadCloud, 
-  MapPin, 
-  CheckCircle2, 
-  AlertTriangle, 
-  ShieldAlert, 
-  ArrowRight, 
-  RefreshCw, 
+import {
+  Camera,
+  UploadCloud,
+  MapPin,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldAlert,
+  ArrowRight,
+  RefreshCw,
   Activity,
   Maximize2,
   BellRing,
@@ -140,17 +139,14 @@ export default function Analyze() {
   const StatusIcon = statusConfig ? statusConfig.icon : null;
 
   return (
-    <div style={{ maxWidth: '820px', margin: '0 auto', padding: '0 16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
-        <BackButton to="/" label="Back to Home" />
-      </div>
+    <div style={{ maxWidth: '820px', margin: '0 auto' }}>
       <div className="glass-card">
         {/* Header */}
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
             <div style={{
-              width: 36, height: 36, borderRadius: '8px', 
-              background: 'rgba(6, 182, 212, 0.15)', display: 'flex', 
+              width: 36, height: 36, borderRadius: '8px',
+              background: 'rgba(6, 182, 212, 0.15)', display: 'flex',
               alignItems: 'center', justifyContent: 'center'
             }}>
               <Camera size={20} color="#38bdf8" />
@@ -158,7 +154,7 @@ export default function Analyze() {
             <h2 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800 }}>CV Water Depth Gauge</h2>
           </div>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.98rem' }}>
-            Upload a flooded road or vehicle photo. Our YOLOv8 model calculates water depth 
+            Upload a flooded road or vehicle photo. Our YOLOv8 model calculates water depth
             by calibrating visible aspect ratios and tire submersion against the 65 cm physical baseline.
           </p>
         </div>
@@ -201,17 +197,17 @@ export default function Analyze() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <Link 
-                to="/login" 
-                state={{ from: location }} 
+              <Link
+                to="/login"
+                state={{ from: location }}
                 className="btn btn-primary"
                 style={{ padding: '7px 16px', fontSize: '0.85rem' }}
               >
                 <LogIn size={14} />
                 <span>Sign In to Upload</span>
               </Link>
-              <Link 
-                to="/register" 
+              <Link
+                to="/register"
                 className="btn btn-secondary"
                 style={{ padding: '7px 14px', fontSize: '0.85rem' }}
               >
@@ -241,7 +237,7 @@ export default function Analyze() {
 
         {/* Upload Form */}
         <form onSubmit={handleUpload}>
-          <div 
+          <div
             className={`dropzone ${dragOver ? 'dropzone-active' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
@@ -249,19 +245,19 @@ export default function Analyze() {
             onClick={handleDropzoneClick}
             style={{ marginBottom: '20px' }}
           >
-            <input 
+            <input
               id="file-upload-input"
-              type="file" 
-              accept="image/jpeg, image/png, image/jpg" 
+              type="file"
+              accept="image/jpeg, image/png, image/jpg"
               onChange={(e) => handleFile(e.target.files[0])}
               style={{ display: 'none' }}
             />
 
             {previewUrl ? (
               <div style={{ textAlign: 'center' }}>
-                <img 
-                  src={previewUrl} 
-                  alt="Upload preview" 
+                <img
+                  src={previewUrl}
+                  alt="Upload preview"
                   style={{ maxHeight: '280px', maxWidth: '100%', borderRadius: '8px', border: '1px solid var(--border-glass)' }}
                 />
                 <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#38bdf8' }}>
@@ -294,8 +290,8 @@ export default function Analyze() {
             border: '1px solid var(--border-glass)',
             borderRadius: 'var(--radius-md)'
           }}>
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={requestLocation}
               className="btn btn-secondary"
               style={{ padding: '8px 14px', fontSize: '0.88rem' }}
@@ -317,8 +313,8 @@ export default function Analyze() {
           </div>
 
           {/* Submit Button */}
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={!file || loading}
             className="btn btn-primary"
             style={{ width: '100%', padding: '14px', fontSize: '1.05rem' }}
@@ -359,7 +355,7 @@ export default function Analyze() {
         {/* Results Dashboard */}
         {result && (
           <div style={{ marginTop: '36px', borderTop: '1px solid var(--border-glass)', paddingTop: '28px' }}>
-            
+
             {/* High-Impact Emergency Toast / Banner (Triggered when sms_alert_sent is true) */}
             {(result.sms_alert_sent || showSmsToast) && (
               <div className="emergency-toast">
@@ -448,7 +444,7 @@ export default function Analyze() {
               fontSize: '0.95rem',
               lineHeight: 1.5
             }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Impact Assessment: </strong> 
+              <strong style={{ color: 'var(--text-primary)' }}>Impact Assessment: </strong>
               {result.reason}
             </div>
 
@@ -478,9 +474,9 @@ export default function Analyze() {
                   <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>65cm Physical Baseline</span>
                 </div>
                 <div style={{ padding: '8px', textAlign: 'center' }}>
-                  <img 
-                    src={result.annotated_image_url} 
-                    alt="YOLOv8 Annotated Visual Gauge" 
+                  <img
+                    src={result.annotated_image_url}
+                    alt="YOLOv8 Annotated Visual Gauge"
                     style={{ maxWidth: '100%', maxHeight: '520px', borderRadius: 'var(--radius-sm)', objectFit: 'contain' }}
                   />
                 </div>

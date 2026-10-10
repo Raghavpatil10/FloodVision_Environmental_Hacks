@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     FRONTEND_ORIGIN: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
     ROUTING_PROVIDER: str = os.getenv("ROUTING_PROVIDER", "osrm")
     ROUTING_BASE_URL: str = os.getenv("ROUTING_BASE_URL", "http://router.project-osrm.org")
+    TRAFFIC_ENABLED: bool = os.getenv("TRAFFIC_ENABLED", "true").lower() == "true"
+    TRAFFIC_DEFAULT_MODE: str = os.getenv("TRAFFIC_DEFAULT_MODE", "live")
+    TRAFFIC_API_KEY: Optional[str] = os.getenv("TRAFFIC_API_KEY", None)
     MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "5"))
     MAX_INCIDENT_AGE_HOURS: int = int(os.getenv("MAX_INCIDENT_AGE_HOURS", "24"))
     CRITICAL_DEPTH_CM: float = float(os.getenv("CRITICAL_DEPTH_CM", "30.0"))

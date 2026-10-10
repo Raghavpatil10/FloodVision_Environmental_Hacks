@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import BackButton from '../components/BackButton';
-import { 
-  Waves, 
-  User, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
-  RefreshCw, 
-  AlertCircle, 
-  CheckCircle2, 
-  ShieldCheck 
+import {
+  Waves,
+  User,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function Register() {
@@ -82,11 +81,6 @@ export default function Register() {
 
   return (
     <div style={{ maxWidth: '540px', margin: '40px auto 60px auto', padding: '0 16px' }}>
-      
-      {/* Top Left Theme-Consistent Back Button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '8px' }}>
-        <BackButton to="/" label="Back to Home" />
-      </div>
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '28px' }}>
@@ -104,21 +98,21 @@ export default function Register() {
         }}>
           <Waves size={32} color="#38bdf8" strokeWidth={2.5} />
         </div>
-        
+
         <h1 style={{ margin: '0 0 6px 0', fontSize: '2.1rem', fontWeight: 900, letterSpacing: '-0.02em', color: '#0f172a' }}>
           FloodVision
         </h1>
-        <div style={{ 
-          display: 'inline-flex', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
           gap: '6px',
-          background: '#10b981', 
-          color: '#ffffff', 
-          border: '2px solid #111111', 
-          borderRadius: '20px', 
-          padding: '3px 12px', 
-          fontSize: '0.8rem', 
-          fontWeight: 800, 
+          background: '#10b981',
+          color: '#ffffff',
+          border: '2px solid #111111',
+          borderRadius: '20px',
+          padding: '3px 12px',
+          fontSize: '0.8rem',
+          fontWeight: 800,
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
           boxShadow: '2px 2px 0px #111111',

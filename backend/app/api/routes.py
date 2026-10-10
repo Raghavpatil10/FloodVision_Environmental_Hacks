@@ -11,7 +11,13 @@ async def plan_route(request: RouteRequest):
     incidents = incident_repo.list_recent_incidents(max_age_hours=24)
     
     try:
-        response = await routing_service.get_routes(request.origin, request.destination, incidents)
+        response = await routing_service.get_routes(
+            origin=request.origin,
+            destination=request.destination,
+            incidents=incidents,
+            consider_traffic=request.consider_traffic if request.consider_traffic is not None else True,
+            traffic_mode=request.traffic_mode or "live"
+        )
         return response
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))

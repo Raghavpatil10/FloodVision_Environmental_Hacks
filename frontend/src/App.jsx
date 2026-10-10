@@ -10,7 +10,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-import RegionalUpload from './pages/RegionalUpload';
 import AccessDenied from './pages/AccessDenied';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -18,10 +17,7 @@ function NavbarAuth() {
   const { user, logout } = useAuth();
 
   if (user) {
-    const isAnyAdmin = user.role === 'admin' || user.role === 'superadmin';
-    const dashboardPath = isAnyAdmin ? '/admin/dashboard' : '/user/dashboard';
-    const badgeColor = user.role === 'superadmin' ? '#9333ea' : (user.role === 'admin' ? '#ef4444' : '#10b981');
-
+    const dashboardPath = user.role === 'admin' ? '/admin/dashboard' : '/user/dashboard';
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <Link
@@ -45,7 +41,7 @@ function NavbarAuth() {
           <LayoutDashboard size={14} color="#0284c7" />
           <span>{user.name.split(' ')[0]}</span>
           <span style={{
-            background: badgeColor,
+            background: user.role === 'admin' ? '#ef4444' : '#10b981',
             color: '#ffffff',
             padding: '1px 6px',
             borderRadius: '10px',
@@ -118,24 +114,24 @@ function App() {
               </Link>
 
               <nav className="nav-links">
-                <NavLink 
-                  to="/analyze" 
+                <NavLink
+                  to="/analyze"
                   className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 >
                   <Camera size={16} />
                   <span>Gauge Depth</span>
                 </NavLink>
 
-                <NavLink 
-                  to="/map" 
+                <NavLink
+                  to="/map"
                   className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 >
                   <MapPin size={16} />
                   <span>Live Map</span>
                 </NavLink>
 
-                <NavLink 
-                  to="/routes" 
+                <NavLink
+                  to="/routes"
                   className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
                 >
                   <Navigation size={16} />
@@ -159,38 +155,28 @@ function App() {
               <Route path="/access-denied" element={<AccessDenied />} />
               <Route path="/map" element={<MapDashboard />} />
               <Route path="/routes" element={<RoutePlanner />} />
-              
+
               {/* Tool Route */}
               <Route path="/analyze" element={<Analyze />} />
 
               {/* Protected User Dashboard */}
-              <Route 
-                path="/user/dashboard" 
+              <Route
+                path="/user/dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={['user', 'admin', 'superadmin']}>
+                  <ProtectedRoute allowedRoles={['user', 'admin']}>
                     <UserDashboard />
                   </ProtectedRoute>
-                } 
+                }
               />
 
-              {/* Protected Regional Admin Dashboard */}
-              <Route 
-                path="/admin/dashboard" 
+              {/* Protected Admin Dashboard */}
+              <Route
+                path="/admin/dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
+                  <ProtectedRoute allowedRoles={['admin']}>
                     <AdminDashboard />
                   </ProtectedRoute>
-                } 
-              />
-
-              {/* Protected Regional Image Upload Form */}
-              <Route 
-                path="/admin/upload" 
-                element={
-                  <ProtectedRoute allowedRoles={['admin', 'superadmin']}>
-                    <RegionalUpload />
-                  </ProtectedRoute>
-                } 
+                }
               />
             </Routes>
           </main>
@@ -201,7 +187,7 @@ function App() {
               <ShieldCheck size={16} color="#06b6d4" />
               <span>Built for Environmental Hacks 2026 | Track 02: Heat & Water</span>
             </div>
-            <div>Computer Vision Waterlogging Gauge & Regional Spatial Flood Management</div>
+            <div>Computer Vision Waterlogging Gauge & Edge-Calibrated Depth Analytics</div>
           </footer>
         </div>
       </BrowserRouter>

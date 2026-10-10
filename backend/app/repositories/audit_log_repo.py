@@ -87,7 +87,6 @@ class AuditLogRepository:
             "timestamp": now
         }
 
-    # Alias for convenience
     record_log = record
 
     def list_logs(self, limit: int = 50) -> List[Dict[str, Any]]:

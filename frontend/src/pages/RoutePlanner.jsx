@@ -18,7 +18,13 @@ import {
   Clock,
   ArrowUpDown,
   CheckCircle2,
-  Eye
+  Eye,
+  Car,
+  Zap,
+  TrendingUp,
+  AlertCircle,
+  Activity,
+  Layers3
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -48,11 +54,20 @@ const createPinIcon = (color, label) => {
 const startIcon = createPinIcon('#10b981', 'Origin');
 const destIcon = createPinIcon('#06b6d4', 'Destination');
 
+const bottleneckIcon = new L.DivIcon({
+  className: 'bottleneck-marker-container',
+  html: `
+    <div style="background-color: #ef4444; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ffffff; box-shadow: 0 0 10px #ef4444; display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 11px; font-weight: 900;">!</div>
+  `,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  popupAnchor: [0, -11]
+});
+
 // Robust coordinate parser: handles degrees, cardinal (N/S/E/W), commas, spaces
 const parseCoordinates = (str) => {
   if (!str || typeof str !== 'string') return null;
   const cleaned = str.trim();
-  // Regex pattern matching: (float) [optional deg] [optional N/S] , (float) [optional deg] [optional E/W]
   const pattern = /([+-]?\d+(?:\.\d+)?)\s*°?\s*([NSns])?[\s,;]+([+-]?\d+(?:\.\d+)?)\s*°?\s*([EWew])?/;
   const match = cleaned.match(pattern);
   if (match) {
@@ -64,7 +79,6 @@ const parseCoordinates = (str) => {
       return { lat, lon };
     }
   }
-  // Fallback simple comma split
   const parts = cleaned.split(',');
   if (parts.length === 2) {
     const lat = parseFloat(parts[0].replace(/[^\d.-]/g, ''));
@@ -129,6 +143,12 @@ export default function RoutePlanner() {
   const [error, setError] = useState(null);
   const [tileMode, setTileMode] = useState('dark');
 
+  // Traffic Consideration Controls
+  const [considerTraffic, setConsiderTraffic] = useState(true);
+  const [trafficMode, setTrafficMode] = useState('live'); // 'live', 'rush_hour', 'free_flow'
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0); // 0 = recommended, 1..n = alternatives
+  const [mapLayerMode, setMapLayerMode] = useState('traffic'); // 'traffic' or 'safety'
+
   const origCoords = parseCoordinates(origin);
   const destCoords = parseCoordinates(destination);
 
@@ -142,13 +162,17 @@ export default function RoutePlanner() {
     setLoading(true);
     setError(null);
     setRouteData(null);
+    setSelectedRouteIndex(0);
 
     try {
       const res = await axios.post(`${API_BASE_URL}/api/routes/plan`, {
         origin: origCoords,
-        destination: destCoords
+        destination: destCoords,
+        consider_traffic: considerTraffic,
+        traffic_mode: trafficMode
       });
       setRouteData(res.data);
+      setSelectedRouteIndex(0);
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Could not plan route.');
     } finally {
@@ -170,11 +194,23 @@ export default function RoutePlanner() {
     setRouteData(null);
   };
 
+  // Resolve currently inspected route
+  const getActiveRoute = () => {
+    if (!routeData) return null;
+    if (selectedRouteIndex === 0) return routeData.recommended_route;
+    if (routeData.alternative_routes && routeData.alternative_routes[selectedRouteIndex - 1]) {
+      return routeData.alternative_routes[selectedRouteIndex - 1];
+    }
+    return routeData.recommended_route;
+  };
+
+  const activeRoute = getActiveRoute();
+
   // Determine polyline positions
   const getPolylinePositions = () => {
-    if (!routeData) return [];
-    if (routeData.recommended_route?.coordinates && routeData.recommended_route.coordinates.length > 0) {
-      return routeData.recommended_route.coordinates.map(c => [c.lat, c.lon]);
+    if (!activeRoute) return [];
+    if (activeRoute.coordinates && activeRoute.coordinates.length > 0) {
+      return activeRoute.coordinates.map(c => [c.lat, c.lon]);
     }
     if (routeData.origin && routeData.destination) {
       return [
@@ -186,8 +222,23 @@ export default function RoutePlanner() {
   };
 
   const polylinePositions = getPolylinePositions();
-  const routeScore = routeData?.recommended_route?.overall_safety_score ?? 100;
+  const routeScore = activeRoute?.overall_safety_score ?? 100;
   const polylineColor = routeScore < 50 ? '#ef4444' : (routeScore < 75 ? '#f59e0b' : '#10b981');
+
+  // Traffic congestion badge helper
+  const getTrafficCongestionMeta = (level) => {
+    switch (level) {
+      case 'severe':
+        return { label: 'Severe Gridlock', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.2)', border: 'rgba(239, 68, 68, 0.4)' };
+      case 'heavy':
+        return { label: 'Heavy Traffic', color: '#f97316', bg: 'rgba(249, 115, 22, 0.2)', border: 'rgba(249, 115, 22, 0.4)' };
+      case 'moderate':
+        return { label: 'Moderate Traffic', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.2)', border: 'rgba(245, 158, 11, 0.4)' };
+      case 'free_flow':
+      default:
+        return { label: 'Free Flow', color: '#10b981', bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 0.4)' };
+    }
+  };
 
   // Default initial map center
   const initialCenter = origCoords ? [origCoords.lat, origCoords.lon] : [21.1298, 79.0752];
@@ -222,7 +273,7 @@ export default function RoutePlanner() {
               </h2>
             </div>
             <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.88rem', lineHeight: 1.5 }}>
-              Calculates vehicle-safe routing weighted against real-time waterlogging depths to prevent engine stall.
+              Calculates vehicle-safe navigation weighted against real-time waterlogging depths and live traffic congestion.
             </p>
           </div>
 
@@ -265,11 +316,11 @@ export default function RoutePlanner() {
                 <MapPin size={14} color="#10b981" />
                 <span>Origin (Lat, Lon):</span>
               </label>
-              <input 
+              <input
                 className="form-input font-mono"
-                value={origin} 
-                onChange={e => setOrigin(e.target.value)} 
-                placeholder="e.g. 21.1298° N, 79.0752° E" 
+                value={origin}
+                onChange={e => setOrigin(e.target.value)}
+                placeholder="e.g. 21.1298° N, 79.0752° E"
               />
               <div className="coord-feedback">
                 {origCoords ? (
@@ -285,9 +336,9 @@ export default function RoutePlanner() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0 12px 0' }}>
-              <button 
-                type="button" 
-                onClick={handleSwap} 
+              <button
+                type="button"
+                onClick={handleSwap}
                 className="chip-btn"
                 style={{ padding: '4px 12px', fontSize: '0.76rem' }}
                 title="Swap Origin and Destination"
@@ -302,11 +353,11 @@ export default function RoutePlanner() {
                 <Flag size={14} color="#06b6d4" />
                 <span>Destination (Lat, Lon):</span>
               </label>
-              <input 
+              <input
                 className="form-input font-mono"
-                value={destination} 
-                onChange={e => setDestination(e.target.value)} 
-                placeholder="e.g. 21.1390° N, 79.0631° E" 
+                value={destination}
+                onChange={e => setDestination(e.target.value)}
+                placeholder="e.g. 21.1390° N, 79.0631° E"
               />
               <div className="coord-feedback">
                 {destCoords ? (
@@ -321,16 +372,81 @@ export default function RoutePlanner() {
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            {/* Traffic Consideration Controls */}
+            <div style={{
+              background: 'rgba(15, 23, 42, 0.45)',
+              border: '1.5px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              marginBottom: '14px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={considerTraffic}
+                    onChange={e => setConsiderTraffic(e.target.checked)}
+                    style={{ width: '16px', height: '16px', accentColor: '#38bdf8' }}
+                  />
+                  <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Car size={15} color="#38bdf8" />
+                    Factor Live Traffic & Delays
+                  </span>
+                </label>
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  background: considerTraffic ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.2)',
+                  color: considerTraffic ? '#34d399' : '#94a3b8',
+                  border: `1px solid ${considerTraffic ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.3)'}`
+                }}>
+                  {considerTraffic ? 'ACTIVE' : 'OFF'}
+                </span>
+              </div>
+
+              {considerTraffic && (
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                  {[
+                    { id: 'live', label: 'Live Diurnal' },
+                    { id: 'rush_hour', label: 'Peak Rush Hour' },
+                    { id: 'free_flow', label: 'Free Flow' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setTrafficMode(m.id)}
+                      className="chip-btn"
+                      style={{
+                        flex: 1,
+                        padding: '4px 6px',
+                        fontSize: '0.74rem',
+                        textAlign: 'center',
+                        justifyContent: 'center',
+                        background: trafficMode === m.id ? '#38bdf8' : 'rgba(255, 255, 255, 0.05)',
+                        color: trafficMode === m.id ? '#0f172a' : '#94a3b8',
+                        fontWeight: trafficMode === m.id ? 800 : 600,
+                        borderColor: trafficMode === m.id ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'
+                      }}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
               disabled={loading || !origCoords || !destCoords}
               className="btn btn-purple"
-              style={{ width: '100%', padding: '13px', fontSize: '1rem', marginTop: '8px' }}
+              style={{ width: '100%', padding: '13px', fontSize: '1rem', marginTop: '4px' }}
             >
               {loading ? (
                 <>
                   <RefreshCw size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                  <span>Evaluating Flood Corridors...</span>
+                  <span>Evaluating Flood & Traffic Corridors...</span>
                 </>
               ) : (
                 <>
@@ -362,79 +478,181 @@ export default function RoutePlanner() {
           )}
 
           {/* Route Results */}
-          {routeData && routeData.recommended_route && (
+          {routeData && activeRoute && (
             <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-glass)', paddingTop: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <span style={{ fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Optimal Safe Navigation
+                  {selectedRouteIndex === 0 ? 'Optimal Safe Navigation' : `Inspecting Option ${selectedRouteIndex}`}
                 </span>
-                <span className={`badge ${routeScore < 50 ? 'badge-danger' : 'badge-safe'}`}>
-                  <ShieldCheck size={14} />
-                  <span>{routeScore < 50 ? 'High Risk' : 'Recommended'}</span>
-                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {activeRoute.traffic_congestion_level && (
+                    <span style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      background: getTrafficCongestionMeta(activeRoute.traffic_congestion_level).bg,
+                      color: getTrafficCongestionMeta(activeRoute.traffic_congestion_level).color,
+                      border: `1px solid ${getTrafficCongestionMeta(activeRoute.traffic_congestion_level).border}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <Car size={12} />
+                      <span>{getTrafficCongestionMeta(activeRoute.traffic_congestion_level).label}</span>
+                    </span>
+                  )}
+                  <span className={`badge ${routeScore < 50 ? 'badge-danger' : 'badge-safe'}`}>
+                    <ShieldCheck size={14} />
+                    <span>{routeScore < 50 ? 'High Risk' : 'Recommended'}</span>
+                  </span>
+                </div>
               </div>
 
-              {/* Recommended Route Card */}
+              {/* Active Route Inspection Card */}
               <div className={`route-card ${routeScore < 50 ? 'route-card-danger' : 'route-card-safe'}`}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center', marginBottom: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center', marginBottom: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Distance</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>
-                      {(routeData.recommended_route.total_distance_m / 1000).toFixed(2)} <span style={{ fontSize: '0.8rem' }}>km</span>
+                    <div style={{ fontSize: '0.70rem', color: '#94a3b8', textTransform: 'uppercase' }}>Distance</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>
+                      {(activeRoute.total_distance_m / 1000).toFixed(2)} <span style={{ fontSize: '0.75rem' }}>km</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Est. Time</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
-                      {Math.max(1, Math.round(routeData.recommended_route.total_duration_s / 60))} <span style={{ fontSize: '0.8rem' }}>min</span>
+                    <div style={{ fontSize: '0.70rem', color: '#94a3b8', textTransform: 'uppercase' }}>Est. Travel</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
+                      {Math.max(1, Math.round(activeRoute.total_duration_s / 60))} <span style={{ fontSize: '0.75rem' }}>min</span>
+                    </div>
+                    {activeRoute.traffic_delay_s > 0 && (
+                      <div style={{ fontSize: '0.68rem', color: '#fbbf24', fontWeight: 700 }}>
+                        +{Math.round(activeRoute.traffic_delay_s / 60)}m delay
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.70rem', color: '#94a3b8', textTransform: 'uppercase' }}>Flood Safety</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: polylineColor }}>
+                      {activeRoute.overall_safety_score} <span style={{ fontSize: '0.75rem' }}>/100</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Safety</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: polylineColor }}>
-                      {routeData.recommended_route.overall_safety_score} <span style={{ fontSize: '0.8rem' }}>/100</span>
+                    <div style={{ fontSize: '0.70rem', color: '#94a3b8', textTransform: 'uppercase' }}>Viability</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>
+                      {activeRoute.composite_score ?? activeRoute.overall_safety_score} <span style={{ fontSize: '0.75rem' }}>/100</span>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ 
-                  fontSize: '0.88rem', 
-                  color: '#f8fafc', 
-                  borderTop: '1px solid rgba(255, 255, 255, 0.1)', 
+                <div style={{
+                  fontSize: '0.88rem',
+                  color: '#f8fafc',
+                  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
                   paddingTop: '10px',
                   lineHeight: 1.45
                 }}>
-                  <strong style={{ color: polylineColor }}>Reason: </strong>
-                  {routeData.recommended_route.recommendation_reason || "No known flood incidents along this route."}
+                  <strong style={{ color: polylineColor }}>Navigation Advice: </strong>
+                  {activeRoute.recommendation_reason || "Route evaluated across live flood hazards and corridor traffic."}
                 </div>
+
+                {/* Localized Bottlenecks strip */}
+                {activeRoute.traffic_bottlenecks && activeRoute.traffic_bottlenecks.length > 0 && (
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '8px 10px',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem'
+                  }}>
+                    <div style={{ fontWeight: 800, color: '#f87171', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                      <AlertTriangle size={13} />
+                      <span>Traffic Friction & Bottlenecks Detected:</span>
+                    </div>
+                    {activeRoute.traffic_bottlenecks.map((b, bIdx) => (
+                      <div key={bIdx} style={{ color: '#fca5a5', lineHeight: 1.4 }}>
+                        • {b.description} (+{Math.round(b.delay_s / 60)} min delay)
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Alternative Routes Comparison */}
               {routeData.alternative_routes && routeData.alternative_routes.length > 0 && (
-                <div style={{ marginTop: '16px' }}>
+                <div style={{ marginTop: '18px' }}>
                   <div style={{ fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                    Alternative Options
+                    Alternative Corridor Options
                   </div>
+
+                  {/* Recommended Option Tab Button */}
+                  <div 
+                    onClick={() => setSelectedRouteIndex(0)}
+                    className="route-card route-card-alt"
+                    style={{
+                      padding: '10px 14px',
+                      cursor: 'pointer',
+                      border: selectedRouteIndex === 0 ? '2px solid #38bdf8' : '1px solid var(--border-glass)',
+                      marginBottom: '8px',
+                      background: selectedRouteIndex === 0 ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.04)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#f8fafc' }}>
+                          Primary Recommended Route
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
+                          {(routeData.recommended_route.total_distance_m / 1000).toFixed(2)} km • {Math.round(routeData.recommended_route.total_duration_s / 60)} min in traffic
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <span style={{
+                          fontSize: '0.76rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '10px',
+                          color: '#34d399',
+                          background: 'rgba(16, 185, 129, 0.15)'
+                        }}>
+                          Score: {routeData.recommended_route.composite_score ?? 100}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Alternative Options */}
                   {routeData.alternative_routes.map((alt, idx) => (
-                    <div key={idx} className="route-card route-card-alt" style={{ padding: '12px 14px' }}>
+                    <div 
+                      key={idx} 
+                      onClick={() => setSelectedRouteIndex(idx + 1)}
+                      className="route-card route-card-alt" 
+                      style={{ 
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        border: selectedRouteIndex === (idx + 1) ? '2px solid #38bdf8' : '1px solid var(--border-glass)',
+                        marginBottom: '8px',
+                        background: selectedRouteIndex === (idx + 1) ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.04)'
+                      }}
+                    >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>Option {idx + 1} (Direct)</div>
-                          <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
+                          <div style={{ fontSize: '0.86rem', fontWeight: 600, color: '#f8fafc' }}>Option {idx + 1} (Alternative)</div>
+                          <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
                             {(alt.total_distance_m / 1000).toFixed(2)} km • {Math.round(alt.total_duration_s / 60)} min
+                            {alt.traffic_delay_s > 0 && <span style={{ color: '#fbbf24' }}> (+{Math.round(alt.traffic_delay_s / 60)}m delay)</span>}
                           </div>
                         </div>
-                        <div style={{ 
-                          fontSize: '0.85rem', 
-                          fontWeight: 700, 
+                        <div style={{
+                          fontSize: '0.80rem',
+                          fontWeight: 700,
                           fontFamily: 'var(--font-mono)',
                           color: alt.overall_safety_score < 50 ? '#f87171' : '#fbbf24',
                           background: alt.overall_safety_score < 50 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                          padding: '4px 10px',
-                          borderRadius: '12px',
+                          padding: '3px 8px',
+                          borderRadius: '10px',
                           border: `1px solid ${alt.overall_safety_score < 50 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
                         }}>
-                          Score: {alt.overall_safety_score}/100
+                          Viability: {alt.composite_score ?? alt.overall_safety_score}/100
                         </div>
                       </div>
                     </div>
@@ -446,21 +664,21 @@ export default function RoutePlanner() {
         </div>
 
         {/* Right Column: Interactive Dark Map */}
-        <div style={{ 
-          position: 'relative', 
-          height: '75vh', 
-          borderRadius: 'var(--radius-lg)', 
-          overflow: 'hidden', 
+        <div style={{
+          position: 'relative',
+          height: '75vh',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
           border: '1px solid var(--border-glass)',
           boxShadow: 'var(--shadow-md)'
         }}>
-          {/* Floating Map Legend & Tile Switcher */}
-          <div className="map-overlay-panel" style={{ top: 16, right: 16, width: '230px' }}>
+          {/* Floating Map Legend & Layer Switcher */}
+          <div className="map-overlay-panel" style={{ top: 16, right: 16, width: '250px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Layers size={14} color="#38bdf8" />
                 <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#f8fafc' }}>
-                  Route Corridors
+                  Navigation Visuals
                 </span>
               </div>
 
@@ -475,34 +693,98 @@ export default function RoutePlanner() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 18, height: 4, background: '#10b981', borderRadius: '2px', boxShadow: '0 0 6px #10b981' }}></div>
-                <span style={{ color: '#34d399', fontWeight: 500 }}>Safe Pass Corridor</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 18, height: 4, background: '#ef4444', borderRadius: '2px', boxShadow: '0 0 6px #ef4444' }}></div>
-                <span style={{ color: '#f87171', fontWeight: 500 }}>Hazard Zone / Stall Risk</span>
-              </div>
+            {/* Mode Toggle: Traffic Flow vs Flood Safety */}
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setMapLayerMode('traffic')}
+                className="chip-btn"
+                style={{
+                  flex: 1,
+                  fontSize: '0.72rem',
+                  padding: '4px 6px',
+                  justifyContent: 'center',
+                  background: mapLayerMode === 'traffic' ? '#38bdf8' : 'rgba(255, 255, 255, 0.05)',
+                  color: mapLayerMode === 'traffic' ? '#0f172a' : '#94a3b8',
+                  fontWeight: mapLayerMode === 'traffic' ? 800 : 600,
+                  borderColor: mapLayerMode === 'traffic' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'
+                }}
+              >
+                Live Traffic
+              </button>
+              <button
+                type="button"
+                onClick={() => setMapLayerMode('safety')}
+                className="chip-btn"
+                style={{
+                  flex: 1,
+                  fontSize: '0.72rem',
+                  padding: '4px 6px',
+                  justifyContent: 'center',
+                  background: mapLayerMode === 'safety' ? '#38bdf8' : 'rgba(255, 255, 255, 0.05)',
+                  color: mapLayerMode === 'safety' ? '#0f172a' : '#94a3b8',
+                  fontWeight: mapLayerMode === 'safety' ? 800 : 600,
+                  borderColor: mapLayerMode === 'safety' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'
+                }}
+              >
+                Flood Safety
+              </button>
             </div>
+
+            {/* Dynamic Legend based on layer */}
+            {mapLayerMode === 'traffic' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#10b981', borderRadius: '2px', boxShadow: '0 0 6px #10b981' }}></div>
+                  <span style={{ color: '#34d399', fontWeight: 500 }}>Free Flow Corridor</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#f59e0b', borderRadius: '2px', boxShadow: '0 0 6px #f59e0b' }}></div>
+                  <span style={{ color: '#fbbf24', fontWeight: 500 }}>Moderate Traffic</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#f97316', borderRadius: '2px', boxShadow: '0 0 6px #f97316' }}></div>
+                  <span style={{ color: '#fdba74', fontWeight: 500 }}>Heavy Congestion</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#ef4444', borderRadius: '2px', boxShadow: '0 0 6px #ef4444' }}></div>
+                  <span style={{ color: '#f87171', fontWeight: 500 }}>Gridlock / Flooded Choke Point</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#10b981', borderRadius: '2px', boxShadow: '0 0 6px #10b981' }}></div>
+                  <span style={{ color: '#34d399', fontWeight: 500 }}>Safe Clearance Pass</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#f59e0b', borderRadius: '2px', boxShadow: '0 0 6px #f59e0b' }}></div>
+                  <span style={{ color: '#fbbf24', fontWeight: 500 }}>Moderate Water Depth</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 16, height: 4, background: '#ef4444', borderRadius: '2px', boxShadow: '0 0 6px #ef4444' }}></div>
+                  <span style={{ color: '#f87171', fontWeight: 500 }}>Hazard Zone / Stall Risk</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          <MapContainer 
-            center={initialCenter} 
-            zoom={12} 
+          <MapContainer
+            center={initialCenter}
+            zoom={12}
             className={tileMode === 'dark' ? 'map-dark-mode' : ''}
             style={{ height: '100%', width: '100%' }}
           >
-            <TileLayer 
+            <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
 
             {/* Auto-fit map to origin/dest/polyline */}
-            <AutoFitRouteBounds 
-              origin={origCoords} 
-              destination={destCoords} 
-              points={routeData?.recommended_route?.coordinates} 
+            <AutoFitRouteBounds
+              origin={origCoords}
+              destination={destCoords}
+              points={activeRoute?.coordinates}
             />
 
             {/* Origin Marker */}
@@ -533,32 +815,81 @@ export default function RoutePlanner() {
               </Marker>
             )}
 
-            {/* Prominent glowing polyline */}
-            {polylinePositions.length >= 2 && (
-              <>
-                {/* Background glow stroke */}
-                <Polyline 
-                  positions={polylinePositions} 
-                  pathOptions={{
-                    color: polylineColor,
-                    weight: 10,
-                    opacity: 0.35,
-                    lineCap: 'round',
-                    lineJoin: 'round'
-                  }}
-                />
-                {/* Core bright stroke */}
-                <Polyline 
-                  positions={polylinePositions} 
-                  pathOptions={{
-                    color: polylineColor,
-                    weight: 5,
-                    opacity: 0.95,
-                    lineCap: 'round',
-                    lineJoin: 'round'
-                  }}
-                />
-              </>
+            {/* Bottlenecks & Flood Choke Points Markers */}
+            {activeRoute?.traffic_bottlenecks?.map((b, bIdx) => (
+              <Marker key={bIdx} position={[b.latitude, b.longitude]} icon={bottleneckIcon}>
+                <Popup>
+                  <div style={{ fontFamily: 'var(--font-sans)', padding: '4px', color: '#0f172a' }}>
+                    <div style={{ fontWeight: 800, color: '#ef4444', fontSize: '0.86rem' }}>
+                      ⚠️ Waterlogged Choke Point
+                    </div>
+                    <div style={{ fontSize: '0.80rem', margin: '4px 0', color: '#334155' }}>
+                      {b.description}
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 700 }}>
+                      Queue Slowdown: +{Math.round(b.delay_s / 60)} min
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+
+            {/* Render Polyline */}
+            {mapLayerMode === 'traffic' && activeRoute?.traffic_segments && activeRoute.traffic_segments.length > 0 ? (
+              // Multi-color traffic segmented polyline
+              activeRoute.traffic_segments.map((seg, sIdx) => {
+                const segCoords = seg.coordinates.map(c => [c.lat, c.lon]);
+                return (
+                  <React.Fragment key={sIdx}>
+                    <Polyline
+                      positions={segCoords}
+                      pathOptions={{
+                        color: seg.color,
+                        weight: 10,
+                        opacity: 0.35,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                    <Polyline
+                      positions={segCoords}
+                      pathOptions={{
+                        color: seg.color,
+                        weight: 5,
+                        opacity: 0.95,
+                        lineCap: 'round',
+                        lineJoin: 'round'
+                      }}
+                    />
+                  </React.Fragment>
+                );
+              })
+            ) : (
+              // Flood Safety Polyline
+              polylinePositions.length >= 2 && (
+                <>
+                  <Polyline
+                    positions={polylinePositions}
+                    pathOptions={{
+                      color: polylineColor,
+                      weight: 10,
+                      opacity: 0.35,
+                      lineCap: 'round',
+                      lineJoin: 'round'
+                    }}
+                  />
+                  <Polyline
+                    positions={polylinePositions}
+                    pathOptions={{
+                      color: polylineColor,
+                      weight: 5,
+                      opacity: 0.95,
+                      lineCap: 'round',
+                      lineJoin: 'round'
+                    }}
+                  />
+                </>
+              )
             )}
           </MapContainer>
         </div>

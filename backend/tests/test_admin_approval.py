@@ -201,27 +201,18 @@ def test_6_normal_users_cannot_access_admin_apis(test_setup):
     assert client.get("/api/admin-requests").status_code == 403
     assert client.post("/api/admin-requests/some-id/review", json={"action": "approve"}).status_code == 403
 
-# 7. Superadmins can view and review applications; regular admins cannot approve
+# 7. Admins can view and review pending applications
 def test_7_admins_can_view_and_review_applications(test_setup):
     client = test_setup["client"]
     user_repo = test_setup["user_repo"]
 
-    # Provision a regular admin
+    # Provision an admin directly via user_repo
     hashed_pwd = test_setup["auth_service"].hash_password("AdminPass123!")
-    user_repo.create_user(
+    admin_user = user_repo.create_user(
         name="Officer Admin",
         email="officer@floodvision.org",
         hashed_password=hashed_pwd,
         role="admin",
-        email_verified=True
-    )
-
-    # Provision a superadmin
-    user_repo.create_user(
-        name="Super Admin",
-        email="superadmin@floodvision.org",
-        hashed_password=hashed_pwd,
-        role="superadmin",
         email_verified=True
     )
 
@@ -237,21 +228,14 @@ def test_7_admins_can_view_and_review_applications(test_setup):
     })
     request_id = req_res.json()["request"]["id"]
 
-    # Login as regular admin -> 403 Forbidden on review list
+    # Login as admin
     client.cookies.clear()
     client.post("/api/auth/login", json={
         "email": "officer@floodvision.org",
         "password": "AdminPass123!"
     })
-    admin_list_res = client.get("/api/admin-requests")
-    assert admin_list_res.status_code == 403
 
-    # Login as superadmin -> 200 OK
-    client.cookies.clear()
-    client.post("/api/auth/login", json={
-        "email": "superadmin@floodvision.org",
-        "password": "AdminPass123!"
-    })
+    # Admin views pending requests
     list_res = client.get("/api/admin-requests")
     assert list_res.status_code == 200
     requests = list_res.json()["requests"]
@@ -263,13 +247,13 @@ def test_8_self_approval_is_blocked(test_setup):
     user_repo = test_setup["user_repo"]
     req_repo = test_setup["request_repo"]
 
-    # Create superadmin
+    # Create admin
     hashed = test_setup["auth_service"].hash_password("AdminPass123!")
     admin = user_repo.create_user(
         name="Self Reviewer",
         email="selfadmin@example.com",
         hashed_password=hashed,
-        role="superadmin",
+        role="admin",
         email_verified=True
     )
 
@@ -306,13 +290,13 @@ def test_9_approval_changes_role_and_records_audit_log(test_setup):
     user_repo = test_setup["user_repo"]
     audit_repo = test_setup["audit_repo"]
 
-    # Superadmin
+    # Admin
     hashed = test_setup["auth_service"].hash_password("AdminPass123!")
     admin = user_repo.create_user(
         name="Chief Admin",
         email="chief@example.com",
         hashed_password=hashed,
-        role="superadmin",
+        role="admin",
         email_verified=True
     )
 
@@ -329,7 +313,7 @@ def test_9_approval_changes_role_and_records_audit_log(test_setup):
     req_id = req_res.json()["request"]["id"]
     promotee_id = req_res.json()["request"]["user_id"]
 
-    # Login as Chief Superadmin
+    # Login as Chief Admin
     client.cookies.clear()
     client.post("/api/auth/login", json={
         "email": "chief@example.com",
@@ -357,13 +341,13 @@ def test_10_rejection_does_not_grant_admin_privileges(test_setup):
     client = test_setup["client"]
     user_repo = test_setup["user_repo"]
 
-    # Superadmin
+    # Admin
     hashed = test_setup["auth_service"].hash_password("AdminPass123!")
     admin = user_repo.create_user(
         name="Strict Admin",
         email="strict@example.com",
         hashed_password=hashed,
-        role="superadmin",
+        role="admin",
         email_verified=True
     )
 
@@ -380,7 +364,7 @@ def test_10_rejection_does_not_grant_admin_privileges(test_setup):
     req_id = req_res.json()["request"]["id"]
     rejectee_id = req_res.json()["request"]["user_id"]
 
-    # Login as superadmin
+    # Login as admin
     client.cookies.clear()
     client.post("/api/auth/login", json={
         "email": "strict@example.com",
@@ -404,13 +388,13 @@ def test_11_concurrent_reviews_prevent_double_processing(test_setup):
     client = test_setup["client"]
     user_repo = test_setup["user_repo"]
 
-    # Superadmin
+    # Admin
     hashed = test_setup["auth_service"].hash_password("AdminPass123!")
     user_repo.create_user(
         name="Review Admin",
         email="reviewadmin@example.com",
         hashed_password=hashed,
-        role="superadmin",
+        role="admin",
         email_verified=True
     )
 
@@ -426,7 +410,7 @@ def test_11_concurrent_reviews_prevent_double_processing(test_setup):
     })
     req_id = req_res.json()["request"]["id"]
 
-    # Login as Superadmin
+    # Login as Admin
     client.cookies.clear()
     client.post("/api/auth/login", json={
         "email": "reviewadmin@example.com",
@@ -447,7 +431,7 @@ def test_11_concurrent_reviews_prevent_double_processing(test_setup):
     })
     assert res2.status_code == 409
 
-# 12. Initial bootstrap fails if a superadmin already exists
+# 12. Initial bootstrap fails if an admin already exists
 def test_12_initial_bootstrap_fails_if_admin_exists(test_setup, monkeypatch):
     user_repo = test_setup["user_repo"]
 
@@ -466,9 +450,9 @@ def test_12_initial_bootstrap_fails_if_admin_exists(test_setup, monkeypatch):
     # First bootstrap succeeds
     boot_res = bootstrap_initial_admin(target_email="owner@floodvision.org")
     assert boot_res["status"] == "success"
-    assert user_repo.get_by_id(owner["id"])["role"] == "superadmin"
+    assert user_repo.get_by_id(owner["id"])["role"] == "admin"
 
-    # Second bootstrap attempt MUST fail with PermissionError because a superadmin now exists
+    # Second bootstrap attempt MUST fail with PermissionError because an admin now exists
     with pytest.raises(PermissionError) as exc_info:
         bootstrap_initial_admin(target_email="owner@floodvision.org")
     assert "already exists" in str(exc_info.value).lower()
