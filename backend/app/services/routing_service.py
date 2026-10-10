@@ -82,6 +82,8 @@ class RoutingService:
             else:
                 reason = "Route passes near moderate or high risk flood zones."
 
+            route_coords_list = [Coordinates(lat=c[1], lon=c[0]) for c in geom_coords]
+
             options.append(
                 RouteOption(
                     total_distance_m=distance,
@@ -97,7 +99,8 @@ class RoutingService:
                     ],
                     overall_safety_score=worst_score,
                     critical_hazards=critical_hazards,
-                    recommendation_reason=reason
+                    recommendation_reason=reason,
+                    coordinates=route_coords_list
                 )
             )
 
