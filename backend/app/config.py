@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     MAX_IMAGE_SIZE_MB: int = int(os.getenv("MAX_IMAGE_SIZE_MB", "5"))
     MAX_INCIDENT_AGE_HOURS: int = int(os.getenv("MAX_INCIDENT_AGE_HOURS", "24"))
     CRITICAL_DEPTH_CM: float = float(os.getenv("CRITICAL_DEPTH_CM", "30.0"))
+    TRAFFIC_WARDEN_PHONE_NUMBER: Optional[str] = os.getenv("TRAFFIC_WARDEN_PHONE_NUMBER", "+15550192834")
     AWS_ENDPOINT_URL: Optional[str] = os.getenv("AWS_ENDPOINT_URL", None)
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
