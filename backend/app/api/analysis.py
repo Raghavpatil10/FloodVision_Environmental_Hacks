@@ -44,21 +44,25 @@ async def analyze_image(
         "sms_alert_sent": sms_alert_sent
     }
     
-    if latitude is not None and longitude is not None:
-        incident_data = {
-            "latitude": latitude,
-            "longitude": longitude,
-            "estimated_depth_cm": depth,
-            "status_flag": result["status_flag"],
-            "safety_score": result["safety_score"],
-            "risk_level": result["risk_level"],
-            "confidence": str(result["confidence"]),
-            "annotated_image_url": result["annotated_image_url"],
-            "raw_image_url": result["raw_image_url"],
-            "sms_alert_sent": sms_alert_sent,
-            "status": "active"
-        }
-        incident_id = incident_repo.save_incident(incident_data)
-        response_data["incident_id"] = incident_id
+    lat = latitude if latitude is not None else 21.1463
+    lon = longitude if longitude is not None else 79.0849
+
+    incident_data = {
+        "latitude": lat,
+        "longitude": lon,
+        "estimated_depth_cm": depth,
+        "status_flag": result["status_flag"],
+        "safety_score": result["safety_score"],
+        "risk_level": result["risk_level"],
+        "confidence": str(result["confidence"]),
+        "annotated_image_url": result["annotated_image_url"],
+        "raw_image_url": result["raw_image_url"],
+        "sms_alert_sent": sms_alert_sent,
+        "status": "active"
+    }
+    incident_id = incident_repo.save_incident(incident_data)
+    response_data["incident_id"] = incident_id
+    response_data["latitude"] = lat
+    response_data["longitude"] = lon
         
     return response_data

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
@@ -21,7 +21,7 @@ import {
   Navigation,
   Compass
 } from 'lucide-react';
-import { getApiBaseUrl } from '../utils/apiConfig';
+import { getApiBaseUrl, fetchWithFallback } from '../utils/apiConfig';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -128,8 +128,8 @@ function MapController({ focusCoords, userLocation, incidents, reCenterTrigger }
       map.flyTo([focusCoords.lat, focusCoords.lon], 16, { animate: true, duration: 1.2 });
       hasInitializedRef.current = true;
     } else if (userLocation && userLocation.lat && userLocation.lon && !hasInitializedRef.current) {
-      // Center on user's active area on load
-      map.setView([userLocation.lat, userLocation.lon], 13);
+      // Auto-center smoothly on user's current location on map start
+      map.flyTo([userLocation.lat, userLocation.lon], 14, { animate: true, duration: 1.2 });
       hasInitializedRef.current = true;
     }
   }, [focusCoords, userLocation, map]);
@@ -196,7 +196,7 @@ export default function MapDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/incidents`);
+      const res = await fetchWithFallback('/api/incidents');
       setIncidents(res.data);
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
@@ -651,6 +651,18 @@ export default function MapDashboard() {
                         />
                       </div>
                     )}
+
+                    {/* Quick Action: Plan Safe Bypass Route around this hazard */}
+                    <div style={{ marginTop: '10px' }}>
+                      <Link
+                        to={`/routes?hazard_lat=${inc.latitude}&hazard_lon=${inc.longitude}`}
+                        className="btn btn-purple"
+                        style={{ width: '100%', padding: '6px 10px', fontSize: '0.78rem', justifyContent: 'center', textDecoration: 'none' }}
+                      >
+                        <Navigation size={13} />
+                        <span>Plan Safe Bypass Route</span>
+                      </Link>
+                    </div>
                   </div>
                 </Popup>
               </Marker>

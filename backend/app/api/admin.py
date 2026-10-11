@@ -45,3 +45,67 @@ def get_audit_logs(limit: int = 50, admin_user: Dict[str, Any] = Depends(get_cur
     return {
         "logs": audit_log_repo.list_logs(limit=limit)
     }
+
+@router.get("/incidents")
+def get_admin_incidents(
+    status: str = "all",
+    lat: float = None,
+    lon: float = None,
+    radius_km: float = None,
+    max_age_hours: int = 72,
+    admin_user: Dict[str, Any] = Depends(get_current_admin_user)
+):
+    """
+    Fetches flood hazard incidents with optional geofenced radius filtering.
+    Enables admin officers to focus on hazards strictly within their assigned operational sector.
+    """
+    incidents = incident_repo.list_incidents(
+        status=status,
+        max_age_hours=max_age_hours,
+        lat=lat,
+        lon=lon,
+        radius_km=radius_km
+    )
+    return {
+        "sector_center": {"lat": lat, "lon": lon} if lat is not None and lon is not None else None,
+        "radius_km": radius_km,
+        "status_filter": status,
+        "total_count": len(incidents),
+        "incidents": incidents
+    }
+
+@router.patch("/incidents/{incident_id}/status")
+def update_admin_incident_status(
+    incident_id: str,
+    status_update: Dict[str, Any],
+    admin_user: Dict[str, Any] = Depends(get_current_admin_user)
+):
+    """
+    Marks an incident as resolved or active.
+    When marked resolved, it is automatically removed from the Live Map and Route avoidance.
+    """
+    new_status = status_update.get("status", "resolved")
+    success = incident_repo.update_status(incident_id, new_status)
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Incident not found or could not update status.")
+
+    # Record action in security audit log
+    audit_log_repo.create_log(
+        action=f"incident_{new_status}",
+        actor_id=admin_user["id"],
+        target_user_id=None,
+        details={
+            "incident_id": incident_id,
+            "new_status": new_status,
+            "admin_name": admin_user["name"],
+            "admin_email": admin_user["email"]
+        }
+    )
+
+    return {
+        "status": "success",
+        "incident_id": incident_id,
+        "new_status": new_status,
+        "message": f"Hazard marked as {new_status}. It is now {'removed from live map and safe route detour calculation' if new_status == 'resolved' else 'reactivated on telemetry map'}."
+    }

@@ -19,10 +19,16 @@ import {
   AlertCircle,
   FileText,
   Shield,
-  MessageSquare
+  MessageSquare,
+  Eye,
+  Camera,
+  Navigation,
+  Sliders,
+  LocateFixed,
+  ExternalLink
 } from 'lucide-react';
 
-import { getApiBaseUrl } from '../utils/apiConfig';
+import { getApiBaseUrl, fetchWithFallback } from '../utils/apiConfig';
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -48,10 +54,80 @@ export default function AdminDashboard() {
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [modalFeedback, setModalFeedback] = useState(null);
 
+  // Operational Sector & Geofenced Radius State
+  const SECTOR_PRESETS = [
+    { name: 'Nagpur Central (HQ)', lat: 21.1463, lon: 79.0849, region: 'Nagpur' },
+    { name: 'Nagpur Sitabuldi & Civil Lines', lat: 21.1534, lon: 79.0803, region: 'Nagpur' },
+    { name: 'Nagpur South & Airport Corridor', lat: 21.1093, lon: 79.0596, region: 'Nagpur' },
+    { name: 'Mumbai Western Suburbs (Bandra/BKC)', lat: 19.0626, lon: 72.8491, region: 'Mumbai' },
+    { name: 'Mumbai Island City (Dadar/Parel)', lat: 19.0065, lon: 72.8390, region: 'Mumbai' }
+  ];
+
+  const [selectedSector, setSelectedSector] = useState(SECTOR_PRESETS[0]);
+  const [sectorRadiusKm, setSectorRadiusKm] = useState(10); // 5km, 10km (Recommended), 25km, null (All)
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState('active'); // 'active', 'resolved', 'all'
+  const [incidents, setIncidents] = useState([]);
+  const [loadingIncidents, setLoadingIncidents] = useState(false);
+  const [incidentActionSubmitting, setIncidentActionSubmitting] = useState(null);
+  const [inspectIncident, setInspectIncident] = useState(null);
+  const [incidentToast, setIncidentToast] = useState(null);
+
   useEffect(() => {
     fetchAdminOverview();
     fetchApplications();
   }, []);
+
+  useEffect(() => {
+    fetchAdminIncidents();
+  }, [selectedSector, sectorRadiusKm, incidentStatusFilter]);
+
+  const fetchAdminIncidents = async () => {
+    setLoadingIncidents(true);
+    try {
+      const params = {
+        status: incidentStatusFilter,
+        max_age_hours: 72
+      };
+      if (selectedSector && sectorRadiusKm !== null) {
+        params.lat = selectedSector.lat;
+        params.lon = selectedSector.lon;
+        params.radius_km = sectorRadiusKm;
+      }
+      const res = await fetchWithFallback('/api/admin/incidents', { params });
+      setIncidents(res.data.incidents || []);
+    } catch (err) {
+      console.warn("Could not load admin incidents:", err);
+    } finally {
+      setLoadingIncidents(false);
+    }
+  };
+
+  const handleResolveIncident = async (incidentId, targetStatus = 'resolved') => {
+    setIncidentActionSubmitting(incidentId);
+    setIncidentToast(null);
+    try {
+      const res = await fetchWithFallback(`/api/admin/incidents/${incidentId}/status`, {
+        method: 'PATCH',
+        data: { status: targetStatus }
+      });
+      setIncidentToast({
+        type: 'success',
+        text: res.data.message || `Incident ${incidentId.slice(0, 8)} marked as ${targetStatus}.`
+      });
+      await fetchAdminIncidents();
+      await fetchAdminOverview();
+      if (inspectIncident && inspectIncident.incident_id === incidentId) {
+        setInspectIncident(null);
+      }
+    } catch (err) {
+      setIncidentToast({
+        type: 'error',
+        text: err.response?.data?.detail || `Failed to update status for incident.`
+      });
+    } finally {
+      setIncidentActionSubmitting(null);
+    }
+  };
 
   const fetchAdminOverview = async () => {
     setLoading(true);
@@ -324,6 +400,549 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* SECTION 4: Flood Hazard Incident Command & Sector Triage */}
+      <div className="glass-card" style={{ marginBottom: '32px', padding: '28px', background: '#ffffff', border: '3px solid #111111', boxShadow: '6px 6px 0px #111111' }}>
+        {/* Header & Sector Jurisdiction Controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '22px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <div style={{ width: 34, height: 34, borderRadius: '8px', background: '#fee2e2', border: '2px solid #111111', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShieldAlert size={18} color="#dc2626" />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900, color: '#0f172a' }}>
+                Flood Hazard Incident Command & Triage
+              </h3>
+            </div>
+            <p style={{ margin: 0, color: '#475569', fontSize: '0.88rem', fontWeight: 500 }}>
+              Live crowdsourced reports geofenced to your assigned operational sector. Resolving an issue immediately clears it from the Live Map and safe detour calculations.
+            </p>
+          </div>
+
+          <button
+            onClick={fetchAdminIncidents}
+            disabled={loadingIncidents}
+            className="btn btn-secondary"
+            style={{ padding: '8px 14px', fontSize: '0.84rem' }}
+          >
+            <RefreshCw size={13} style={loadingIncidents ? { animation: 'spin 1s linear infinite' } : {}} />
+            <span>Refresh Hazards</span>
+          </button>
+        </div>
+
+        {/* Sector Assignment & Radius Filter Strip */}
+        <div style={{
+          background: '#f8fafc',
+          border: '2px solid #111111',
+          borderRadius: '8px',
+          padding: '16px',
+          marginBottom: '20px',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '14px'
+        }}>
+          {/* Sector Location Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem', fontWeight: 800, color: '#0f172a' }}>
+              <MapPin size={16} color="#0284c7" />
+              <span>Assigned Sector HQ:</span>
+            </div>
+            <select
+              value={selectedSector.name}
+              onChange={(e) => {
+                const found = SECTOR_PRESETS.find(s => s.name === e.target.value);
+                if (found) setSelectedSector(found);
+              }}
+              style={{
+                padding: '8px 12px',
+                border: '2px solid #111111',
+                borderRadius: '6px',
+                fontWeight: 800,
+                fontSize: '0.84rem',
+                background: '#ffffff',
+                color: '#0f172a',
+                boxShadow: '2px 2px 0px #111111',
+                cursor: 'pointer'
+              }}
+            >
+              {SECTOR_PRESETS.map((s, idx) => (
+                <option key={idx} value={s.name}>
+                  {s.name} ({s.region})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Operational Radius Filter Pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Sector Radius:
+            </span>
+            {[
+              { label: '5 km (Ward)', val: 5 },
+              { label: '10 km (Zone)', val: 10 },
+              { label: '25 km (Metro)', val: 25 },
+              { label: 'All Sectors', val: null }
+            ].map((r, idx) => {
+              const isSelected = sectorRadiusKm === r.val;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSectorRadiusKm(r.val)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    borderRadius: '6px',
+                    border: '2px solid #111111',
+                    background: isSelected ? '#FFCE32' : '#ffffff',
+                    color: '#111111',
+                    boxShadow: isSelected ? '2px 2px 0px #111111' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Status Filter Tabs (Active vs Resolved vs All) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setIncidentStatusFilter('active')}
+              style={{
+                padding: '8px 16px',
+                fontSize: '0.84rem',
+                fontWeight: 800,
+                borderRadius: '6px',
+                border: '2px solid #111111',
+                background: incidentStatusFilter === 'active' ? '#ef4444' : '#f1f5f9',
+                color: incidentStatusFilter === 'active' ? '#ffffff' : '#111111',
+                boxShadow: incidentStatusFilter === 'active' ? '3px 3px 0px #111111' : 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span className={incidentStatusFilter === 'active' ? 'status-pulse-dot' : ''}></span>
+              <span>Active Flood Hazards</span>
+            </button>
+
+            <button
+              onClick={() => setIncidentStatusFilter('resolved')}
+              style={{
+                padding: '8px 16px',
+                fontSize: '0.84rem',
+                fontWeight: 800,
+                borderRadius: '6px',
+                border: '2px solid #111111',
+                background: incidentStatusFilter === 'resolved' ? '#16a34a' : '#f1f5f9',
+                color: incidentStatusFilter === 'resolved' ? '#ffffff' : '#111111',
+                boxShadow: incidentStatusFilter === 'resolved' ? '3px 3px 0px #111111' : 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <span>Resolved Incidents</span>
+            </button>
+
+            <button
+              onClick={() => setIncidentStatusFilter('all')}
+              style={{
+                padding: '8px 16px',
+                fontSize: '0.84rem',
+                fontWeight: 800,
+                borderRadius: '6px',
+                border: '2px solid #111111',
+                background: incidentStatusFilter === 'all' ? '#0f172a' : '#f1f5f9',
+                color: incidentStatusFilter === 'all' ? '#ffffff' : '#111111',
+                boxShadow: incidentStatusFilter === 'all' ? '3px 3px 0px #111111' : 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <span>All Reports</span>
+            </button>
+          </div>
+
+          <div style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>
+            Showing <strong>{incidents.length}</strong> hazards within {sectorRadiusKm ? `${sectorRadiusKm} km of ${selectedSector.name}` : 'entire territory'}
+          </div>
+        </div>
+
+        {/* Action Feedback Toast */}
+        {incidentToast && (
+          <div style={{
+            padding: '12px 16px',
+            borderRadius: '6px',
+            border: '2px solid #111111',
+            boxShadow: '3px 3px 0px #111111',
+            marginBottom: '16px',
+            fontSize: '0.86rem',
+            fontWeight: 700,
+            background: incidentToast.type === 'success' ? '#dcfce7' : '#fee2e2',
+            color: incidentToast.type === 'success' ? '#166534' : '#991b1b',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle2 size={16} />
+              <span>{incidentToast.text}</span>
+            </div>
+            <button onClick={() => setIncidentToast(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 900 }}>✕</button>
+          </div>
+        )}
+
+        {/* Incident List Table / Cards */}
+        {loadingIncidents ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+            <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px auto' }} />
+            <div>Filtering incidents in sector radius...</div>
+          </div>
+        ) : incidents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b', background: '#f8fafc', border: '2px dashed #cbd5e1', borderRadius: '8px' }}>
+            <ShieldCheck size={36} color="#16a34a" style={{ margin: '0 auto 10px auto' }} />
+            <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>Sector Clear of Active Hazards</div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.86rem' }}>
+              No {incidentStatusFilter !== 'all' ? incidentStatusFilter : ''} waterlogging reports found within {sectorRadiusKm ? `${sectorRadiusKm} km of ${selectedSector.name}` : 'this sector'}.
+            </p>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #111111', textAlign: 'left' }}>
+                  <th style={{ padding: '12px', fontWeight: 800 }}>Visual Proof</th>
+                  <th style={{ padding: '12px', fontWeight: 800 }}>Depth & Hazard</th>
+                  <th style={{ padding: '12px', fontWeight: 800 }}>Sector Distance</th>
+                  <th style={{ padding: '12px', fontWeight: 800 }}>Reported At</th>
+                  <th style={{ padding: '12px', fontWeight: 800 }}>Status</th>
+                  <th style={{ padding: '12px', fontWeight: 800, textAlign: 'right' }}>Admin Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incidents.map((inc) => {
+                  const depth = parseFloat(inc.estimated_depth_cm) || 0;
+                  const isCritical = depth >= 30 || inc.risk_level === 'critical';
+                  const isResolved = inc.status === 'resolved';
+
+                  return (
+                    <tr key={inc.incident_id} style={{ borderBottom: '1px solid #e2e8f0', background: isResolved ? '#f8fafc' : (isCritical ? '#fff1f2' : '#ffffff') }}>
+                      {/* Visual Proof Thumbnail */}
+                      <td style={{ padding: '12px', verticalAlign: 'middle', width: '120px' }}>
+                        <div 
+                          onClick={() => setInspectIncident(inc)}
+                          style={{
+                            width: 80,
+                            height: 56,
+                            borderRadius: '6px',
+                            border: '2px solid #111111',
+                            overflow: 'hidden',
+                            position: 'relative',
+                            cursor: 'pointer',
+                            background: '#0f172a'
+                          }}
+                          title="Click to Inspect Annotated Visual Proof"
+                        >
+                          <img 
+                            src={inc.annotated_image_url || inc.raw_image_url || 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=300&q=80'} 
+                            alt="Proof Visual"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }}
+                          />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: 2,
+                            right: 2,
+                            background: 'rgba(0,0,0,0.7)',
+                            borderRadius: '3px',
+                            padding: '1px 3px',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}>
+                            <Eye size={10} />
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Depth Gauge & Hazard */}
+                      <td style={{ padding: '12px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          <span style={{ fontSize: '1.25rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: isCritical ? '#dc2626' : (depth >= 16 ? '#d97706' : '#16a34a') }}>
+                            {depth} cm
+                          </span>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            background: isCritical ? '#fee2e2' : (depth >= 16 ? '#fef3c7' : '#dcfce7'),
+                            color: isCritical ? '#991b1b' : (depth >= 16 ? '#92400e' : '#166534'),
+                            border: '1px solid #111111'
+                          }}>
+                            {isCritical ? 'CRITICAL (30+ cm)' : (depth >= 16 ? 'CAUTION' : 'SAFE')}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: '3px' }}>
+                          Safety Index: <strong>{inc.safety_score ?? 'N/A'}/100</strong> • ID: {inc.incident_id?.slice(0, 8)}
+                        </div>
+                      </td>
+
+                      {/* Sector Distance */}
+                      <td style={{ padding: '12px', verticalAlign: 'middle' }}>
+                        <div style={{ fontWeight: 800, color: '#0f172a' }}>
+                          {inc.distance_km !== undefined ? `${inc.distance_km} km` : 'In Region'}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                          from {selectedSector.name.split(' ')[0]} HQ
+                        </div>
+                        <div style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: '#475569', marginTop: '2px' }}>
+                          Lat: {Number(inc.latitude).toFixed(4)}, Lon: {Number(inc.longitude).toFixed(4)}
+                        </div>
+                      </td>
+
+                      {/* Reported Timestamp */}
+                      <td style={{ padding: '12px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>
+                          {new Date(inc.reported_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: '#64748b' }}>
+                          {new Date(inc.reported_at).toLocaleDateString()}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: '12px', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontSize: '0.76rem',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          background: isResolved ? '#dcfce7' : '#fee2e2',
+                          color: isResolved ? '#166534' : '#991b1b',
+                          border: `1px solid ${isResolved ? '#86efac' : '#fca5a5'}`
+                        }}>
+                          {isResolved ? 'Resolved ✓' : 'Active Hazard'}
+                        </span>
+                      </td>
+
+                      {/* Admin Actions */}
+                      <td style={{ padding: '12px', verticalAlign: 'middle', textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                          {/* Inspect Modal Trigger */}
+                          <button
+                            type="button"
+                            onClick={() => setInspectIncident(inc)}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 10px', fontSize: '0.78rem' }}
+                            title="Inspect ML Visual Telemetry"
+                          >
+                            <Eye size={13} />
+                            <span>Proof</span>
+                          </button>
+
+                          {/* Map Pinpoint Link */}
+                          <Link
+                            to={`/map?lat=${inc.latitude}&lon=${inc.longitude}&incident_id=${inc.incident_id}&highlight=true`}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 10px', fontSize: '0.78rem', textDecoration: 'none' }}
+                            title="Open on GIS Telemetry Map"
+                          >
+                            <MapPin size={13} color="#0284c7" />
+                            <span>Map</span>
+                          </Link>
+
+                          {/* Mark as Resolved Action */}
+                          {!isResolved ? (
+                            <button
+                              type="button"
+                              onClick={() => handleResolveIncident(inc.incident_id, 'resolved')}
+                              disabled={incidentActionSubmitting === inc.incident_id}
+                              className="btn btn-emerald"
+                              style={{ padding: '6px 12px', fontSize: '0.78rem', whiteSpace: 'nowrap' }}
+                              title="Mark Hazard as Drained and Resolved"
+                            >
+                              {incidentActionSubmitting === inc.incident_id ? (
+                                <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                              ) : (
+                                <Check size={13} />
+                              )}
+                              <span>Mark Resolved</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleResolveIncident(inc.incident_id, 'active')}
+                              disabled={incidentActionSubmitting === inc.incident_id}
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 10px', fontSize: '0.76rem', color: '#475569' }}
+                              title="Reactivate Hazard if waterlogged again"
+                            >
+                              <span>Reopen</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Visual Proof Inspection Modal */}
+      {inspectIncident && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.82)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            background: '#ffffff',
+            border: '3px solid #111111',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '680px',
+            width: 'calc(100vw - 28px)',
+            boxShadow: '8px 8px 0px #111111',
+            position: 'relative',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <button
+              type="button"
+              onClick={() => setInspectIncident(null)}
+              style={{
+                position: 'absolute',
+                top: 14,
+                right: 14,
+                background: '#f1f5f9',
+                border: '2px solid #111111',
+                borderRadius: '6px',
+                width: 32,
+                height: 32,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontWeight: 900
+              }}
+            >
+              ✕
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <Camera size={20} color="#0284c7" />
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>
+                Computer Vision Visual Proof & Telemetry
+              </h3>
+            </div>
+
+            {/* Large Annotated Image Container */}
+            <div style={{
+              borderRadius: '8px',
+              overflow: 'hidden',
+              border: '2px solid #111111',
+              boxShadow: '3px 3px 0px #111111',
+              background: '#0f172a',
+              marginBottom: '16px',
+              textAlign: 'center'
+            }}>
+              <img 
+                src={inspectIncident.annotated_image_url || inspectIncident.raw_image_url} 
+                alt="Full Proof Annotated"
+                style={{ width: '100%', maxHeight: '360px', objectFit: 'contain', display: 'block' }}
+              />
+            </div>
+
+            {/* Telemetry Metrics Strip */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '18px' }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Calculated Depth</div>
+                <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: parseFloat(inspectIncident.estimated_depth_cm) >= 30 ? '#dc2626' : '#0284c7' }}>
+                  {inspectIncident.estimated_depth_cm} cm
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>YOLO Confidence</div>
+                <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: '#16a34a' }}>
+                  {Math.round(parseFloat(inspectIncident.confidence || 0.9) * 100)}%
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Hazard Status</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase', color: inspectIncident.status === 'resolved' ? '#16a34a' : '#ef4444' }}>
+                  {inspectIncident.status}
+                </div>
+              </div>
+
+              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Coordinates</div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#0f172a', marginTop: '4px' }}>
+                  {Number(inspectIncident.latitude).toFixed(4)}, {Number(inspectIncident.longitude).toFixed(4)}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', borderTop: '2px solid #e2e8f0', paddingTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setInspectIncident(null)}
+                className="btn btn-secondary"
+                style={{ padding: '10px 16px', fontSize: '0.86rem' }}
+              >
+                Close
+              </button>
+
+              {inspectIncident.status !== 'resolved' ? (
+                <button
+                  type="button"
+                  onClick={() => handleResolveIncident(inspectIncident.incident_id, 'resolved')}
+                  disabled={incidentActionSubmitting === inspectIncident.incident_id}
+                  className="btn btn-emerald"
+                  style={{ padding: '10px 18px', fontSize: '0.86rem', fontWeight: 800 }}
+                >
+                  <Check size={16} />
+                  <span>Confirm Water Drained & Mark Resolved</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleResolveIncident(inspectIncident.incident_id, 'active')}
+                  disabled={incidentActionSubmitting === inspectIncident.incident_id}
+                  className="btn btn-secondary"
+                  style={{ padding: '10px 16px', fontSize: '0.86rem' }}
+                >
+                  <span>Reopen Hazard</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SECTION 5: Admin Approval Dashboard Section */}
       <div className="glass-card" style={{ marginBottom: '32px', padding: '28px', background: '#ffffff', border: '3px solid #111111', boxShadow: '6px 6px 0px #111111' }}>

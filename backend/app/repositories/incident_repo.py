@@ -133,26 +133,59 @@ class IncidentRepository:
         
         return self._local_incidents.get(incident_id)
 
-    def list_recent_incidents(self, max_age_hours: int = 24) -> List[Dict[str, Any]]:
-        cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
+    def list_incidents(
+        self, 
+        status: Optional[str] = "active", 
+        max_age_hours: Optional[int] = 24,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        radius_km: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat() if max_age_hours else None
         
+        items = list(self._local_incidents.values())
         if self.table:
             try:
-                response = self.table.scan(
-                    FilterExpression="reported_at >= :cutoff AND #st = :active",
-                    ExpressionAttributeNames={"#st": "status"},
-                    ExpressionAttributeValues={":cutoff": cutoff, ":active": "active"}
-                )
-                items = response.get("Items")
-                if items is not None:
-                    return _decimals_to_floats(items)
-            except (ClientError, BotoCoreError, Exception) as e:
-                logger.warning(f"Failed to scan DynamoDB, falling back to local memory: {e}")
-        
-        return [
-            item for item in self._local_incidents.values()
-            if item.get("status") == "active" and item.get("reported_at", "") >= cutoff
-        ]
+                res = self.table.scan()
+                if res.get("Items") is not None:
+                    items = _decimals_to_floats(res.get("Items"))
+            except Exception as e:
+                logger.warning(f"Dynamo scan fallback: {e}")
+
+        results = []
+        for item in items:
+            item_status = str(item.get("status", "active")).lower()
+            if status and status.lower() != "all" and item_status != status.lower():
+                continue
+            if cutoff and item.get("reported_at", "") < cutoff:
+                continue
+            item_lat = item.get("latitude")
+            item_lon = item.get("longitude")
+            if lat is not None and lon is not None and item_lat is not None and item_lon is not None:
+                d_km = round(self.calculate_distance_km(lat, lon, float(item_lat), float(item_lon)), 2)
+                item_copy = dict(item)
+                item_copy["distance_km"] = d_km
+                if radius_km is not None and d_km > radius_km:
+                    continue
+                results.append(item_copy)
+            else:
+                results.append(dict(item))
+
+        results.sort(key=lambda x: x.get("reported_at", ""), reverse=True)
+        return results
+
+    def list_recent_incidents(self, max_age_hours: int = 24) -> List[Dict[str, Any]]:
+        return self.list_incidents(status="active", max_age_hours=max_age_hours)
+
+    @staticmethod
+    def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        import math
+        r = 6371.0
+        p1, p2 = math.radians(lat1), math.radians(lat2)
+        dp = math.radians(lat2 - lat1)
+        dl = math.radians(lon2 - lon1)
+        a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     def update_status(self, incident_id: str, new_status: str) -> bool:
         now = datetime.utcnow().isoformat()
