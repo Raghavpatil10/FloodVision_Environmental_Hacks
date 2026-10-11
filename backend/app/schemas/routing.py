@@ -24,6 +24,7 @@ class RouteOption(BaseModel):
     overall_safety_score: int
     critical_hazards: int
     recommendation_reason: str
+    coordinates: Optional[List[Coordinates]] = None
 
 class RouteResponse(BaseModel):
     origin: Coordinates

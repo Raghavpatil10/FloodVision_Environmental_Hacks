@@ -1,0 +1,50 @@
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Model weights, datasets, and local database storage
+*.db
+*.sqlite
+*.sqlite3
+data/
+backend/data/
+# *.pt
+# *.pth
+# *.onnx
+# datasets/
+
+# Node.js
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Build and temporary files
+build/
+tmp/
+temp/
+*.log
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

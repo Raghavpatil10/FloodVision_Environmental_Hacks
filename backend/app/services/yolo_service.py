@@ -20,14 +20,17 @@ NOMINAL_SUV_ASPECT = 0.92           # Standard SUV / Van / Light truck
 class YOLODepthDetector:
     def __init__(self, weights_path: Optional[str] = None):
         """
-        Initializes the YOLOv8 model.
-        Loads custom trained weights (best.pt) or pre-trained yolov8n.pt.
+        Initializes the YOLOv8 detector instance.
+        Loads weights lazily on first inference request to save memory and startup time.
         """
         self.model = None
         self.weights_path = weights_path
-        self._init_model()
+        self._initialized = False
 
     def _init_model(self):
+        if self._initialized:
+            return
+        self._initialized = True
         try:
             from ultralytics import YOLO
             
@@ -65,6 +68,7 @@ class YOLODepthDetector:
         3. Annotates the image with vehicle bounding boxes, waterlines, and telemetry HUD.
         4. Returns estimated depth, status flag (Safe/Caution/Danger), confidence, and annotated image bytes.
         """
+        self._init_model()
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except Exception as e:
