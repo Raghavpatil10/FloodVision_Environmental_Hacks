@@ -1,12 +1,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .api import analysis, incidents, routes
+from .api import analysis, incidents, routes, auth, admin, admin_requests
+
+from .services.auth_service import auth_service
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    auth_service.seed_initial_users()
+    yield
 
 app = FastAPI(
     title="FloodVision API",
     version="0.1.0",
-    description="Flood depth estimation, risk monitoring, and routing platform."
+    description="Flood depth estimation, risk monitoring, and routing platform.",
+    lifespan=lifespan
 )
 
 frontend_origins = list(set([
@@ -31,6 +40,10 @@ app.add_middleware(
 def health_check():
     return {"status": "ok"}
 
+app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(admin.router, prefix="/api", tags=["admin"])
+app.include_router(admin_requests.router, prefix="/api", tags=["admin-requests"])
 app.include_router(analysis.router, prefix="/api", tags=["analysis"])
 app.include_router(incidents.router, prefix="/api", tags=["incidents"])
 app.include_router(routes.router, prefix="/api", tags=["routes"])
+

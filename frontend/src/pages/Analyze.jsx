@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { getUserLocation, searchLocations } from '../utils/geoUtils';
 import { 
   Camera, 
   UploadCloud, 
@@ -14,22 +16,83 @@ import {
   Maximize2,
   BellRing,
   Radio,
-  Check
+  Check,
+  Lock,
+  LogIn,
+  UserCheck,
+  X,
+  Search,
+  Compass
 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from '../utils/apiConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 export default function Analyze() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [coords, setCoords] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationLabel, setLocationLabel] = useState('');
+  const [manualLocationText, setManualLocationText] = useState('');
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [showSmsToast, setShowSmsToast] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Auto-acquire user location on load (via GPS or IP fallback)
+  useEffect(() => {
+    fetchAutoLocation();
+  }, []);
+
+  const fetchAutoLocation = async () => {
+    setLocating(true);
+    try {
+      const loc = await getUserLocation();
+      setCoords({ lat: loc.lat, lon: loc.lon });
+      setLocationLabel(loc.label || `${loc.city || 'Detected Area'} (${loc.lat.toFixed(4)}, ${loc.lon.toFixed(4)})`);
+    } catch (e) {
+      console.warn("Location error:", e);
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const handleManualLocationSearch = async (e) => {
+    if (e) e.preventDefault();
+    if (!manualLocationText.trim()) return;
+    setLocating(true);
+    try {
+      const results = await searchLocations(manualLocationText.trim());
+      if (results && results.length > 0) {
+        const top = results[0];
+        setCoords({ lat: top.lat, lon: top.lon });
+        setLocationLabel(`${top.name} (${top.lat.toFixed(4)}, ${top.lon.toFixed(4)})`);
+        setShowLocationSearch(false);
+        setManualLocationText('');
+      } else {
+        alert(`Could not find coordinates for "${manualLocationText}". Try adding city name.`);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const handleFile = (selected) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (selected && (selected.type === 'image/jpeg' || selected.type === 'image/png' || selected.type === 'image/jpg')) {
       setFile(selected);
       setPreviewUrl(URL.createObjectURL(selected));
@@ -44,30 +107,43 @@ export default function Analyze() {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
   };
 
-  const requestLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCoords({
-            lat: position.coords.latitude,
-            lon: position.coords.longitude
-          });
-        },
-        (err) => {
-          console.error("Location error", err);
-          alert("Could not retrieve GPS location. You can still analyze without GPS coordinates.");
-        }
-      );
+  const handleDropzoneClick = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
     }
+    const input = document.getElementById('file-upload-input');
+    if (input) input.click();
+  };
+
+  const handleCameraCaptureClick = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    const input = document.getElementById('camera-capture-input');
+    if (input) input.click();
+  };
+
+  const requestLocation = () => {
+    fetchAutoLocation();
   };
 
   const handleUpload = async (e) => {
     e.preventDefault();
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     if (!file) return;
 
     setLoading(true);
@@ -128,6 +204,82 @@ export default function Analyze() {
           </p>
         </div>
 
+        {/* Authentication Notice Banner */}
+        {!user ? (
+          <div style={{
+            background: '#eff6ff',
+            border: '2px solid #0284c7',
+            borderRadius: '10px',
+            padding: '14px 18px',
+            marginBottom: '22px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: '3px 3px 0px #0284c7'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: 38,
+                height: 38,
+                borderRadius: '8px',
+                background: 'rgba(2, 132, 199, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <Lock size={20} color="#0284c7" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.94rem' }}>
+                  Citizen Sign-In Required to Upload Imagery
+                </div>
+                <div style={{ color: '#475569', fontSize: '0.84rem' }}>
+                  Please sign in or create an account to submit street photos for verified depth telemetry.
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Link 
+                to="/login" 
+                state={{ from: location }} 
+                className="btn btn-primary"
+                style={{ padding: '7px 16px', fontSize: '0.85rem' }}
+              >
+                <LogIn size={14} />
+                <span>Sign In to Upload</span>
+              </Link>
+              <Link 
+                to="/register" 
+                className="btn btn-secondary"
+                style={{ padding: '7px 14px', fontSize: '0.85rem' }}
+              >
+                <span>Register</span>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            background: '#f0fdf4',
+            border: '2px solid #16a34a',
+            borderRadius: '10px',
+            padding: '10px 16px',
+            marginBottom: '22px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '0.88rem',
+            color: '#15803d',
+            fontWeight: 700,
+            boxShadow: '2px 2px 0px #16a34a'
+          }}>
+            <UserCheck size={18} color="#16a34a" />
+            <span>Authenticated Reporter: <strong>{user.name}</strong> ({user.role.toUpperCase()}) • Ready to upload and gauge flood depth</span>
+          </div>
+        )}
+
         {/* Upload Form */}
         <form onSubmit={handleUpload}>
           <div 
@@ -135,7 +287,6 @@ export default function Analyze() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={() => document.getElementById('file-upload-input').click()}
             style={{ marginBottom: '20px' }}
           >
             <input 
@@ -145,26 +296,69 @@ export default function Analyze() {
               onChange={(e) => handleFile(e.target.files[0])}
               style={{ display: 'none' }}
             />
+            <input 
+              id="camera-capture-input"
+              type="file" 
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => handleFile(e.target.files[0])}
+              style={{ display: 'none' }}
+            />
 
             {previewUrl ? (
               <div style={{ textAlign: 'center' }}>
                 <img 
                   src={previewUrl} 
                   alt="Upload preview" 
-                  style={{ maxHeight: '280px', maxWidth: '100%', borderRadius: '8px', border: '1px solid var(--border-glass)' }}
+                  style={{ maxHeight: '280px', maxWidth: '100%', borderRadius: '8px', border: '2px solid #111111', objectFit: 'contain' }}
                 />
-                <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#38bdf8' }}>
-                  Click or drag another image to replace
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleDropzoneClick}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                  >
+                    Change Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setFile(null); setPreviewUrl(null); }}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem', color: '#b91c1c' }}
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             ) : (
               <div>
-                <UploadCloud size={44} color="#38bdf8" style={{ margin: '0 auto 12px auto', display: 'block', opacity: 0.8 }} />
-                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                  Drag & Drop street photo, or <span style={{ color: '#38bdf8', textDecoration: 'underline' }}>Browse</span>
+                <UploadCloud size={44} color="#0284c7" style={{ margin: '0 auto 12px auto', display: 'block' }} />
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
+                  Capture or Upload Road Water Photo
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Supports JPEG, JPG, PNG (Max 5MB)
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap', margin: '14px 0 10px 0' }}>
+                  <button
+                    type="button"
+                    onClick={handleCameraCaptureClick}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '0.86rem' }}
+                  >
+                    <Camera size={16} />
+                    <span>Take Photo (Camera)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDropzoneClick}
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 16px', fontSize: '0.86rem' }}
+                  >
+                    <UploadCloud size={16} />
+                    <span>Choose from Files</span>
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  Supports JPEG, JPG, PNG (Max 5MB) • Calibrated against 65cm car tire
                 </div>
               </div>
             )}
@@ -172,35 +366,93 @@ export default function Analyze() {
 
           {/* Location & Controls Strip */}
           <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
             marginBottom: '24px',
-            padding: '12px 16px',
-            background: 'rgba(15, 23, 42, 0.5)',
-            border: '1px solid var(--border-glass)',
-            borderRadius: 'var(--radius-md)'
+            padding: '14px 18px',
+            background: '#ffffff',
+            border: '2px solid #111111',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '3px 3px 0px #111111'
           }}>
-            <button 
-              type="button" 
-              onClick={requestLocation}
-              className="btn btn-secondary"
-              style={{ padding: '8px 14px', fontSize: '0.88rem' }}
-            >
-              <MapPin size={16} color="#38bdf8" />
-              <span>Attach GPS Coordinates</span>
-            </button>
-
-            {coords ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', color: '#34d399', fontWeight: 600 }}>
-                <CheckCircle2 size={16} />
-                <span>Lat: {coords.lat.toFixed(4)}, Lon: {coords.lon.toFixed(4)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '6px',
+                  background: coords ? '#dcfce7' : '#e0f2fe',
+                  border: '2px solid #111111',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <MapPin size={18} color="#111111" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#111111' }}>
+                    {coords ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span>📍 {locationLabel || `Lat: ${coords.lat.toFixed(4)}, Lon: ${coords.lon.toFixed(4)}`}</span>
+                        <CheckCircle2 size={15} color="#16a34a" />
+                      </span>
+                    ) : (
+                      <span>Location Pending Detection...</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    {coords ? `Exact Coordinates: ${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}` : 'Will auto-pin to your location or area'}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                GPS optional (logs to Live GIS Map)
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button" 
+                  onClick={fetchAutoLocation}
+                  disabled={locating}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                  title="Re-detect current location"
+                >
+                  <Compass size={14} className={locating ? 'animate-spin' : ''} />
+                  <span>{locating ? 'Detecting...' : 'Re-Detect GPS'}</span>
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => setShowLocationSearch(!showLocationSearch)}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                >
+                  <Search size={14} />
+                  <span>{showLocationSearch ? 'Close' : 'Set Landmark'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Optional Manual Landmark / City Search Bar */}
+            {showLocationSearch && (
+              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={manualLocationText}
+                    onChange={(e) => setManualLocationText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleManualLocationSearch(); } }}
+                    placeholder="Enter landmark or street (e.g. Sitabuldi, Nagpur or Mumbai Airport)"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: '4px',
+                      border: '2px solid #111111',
+                      fontSize: '0.85rem'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleManualLocationSearch}
+                    disabled={locating || !manualLocationText.trim()}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+                  >
+                    <span>Set Location</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -377,28 +629,175 @@ export default function Analyze() {
             )}
 
             {/* Incident Persisted Banner */}
-            {result.incident_id && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '14px 18px',
-                borderRadius: 'var(--radius-md)',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                flexWrap: 'wrap',
-                gap: '10px'
-              }}>
-                <div style={{ color: '#34d399', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={18} />
-                  <span>Logged to Amazon DynamoDB (ID: {result.incident_id.slice(0, 8)}...)</span>
+            {/* Incident Persisted & Live Map Pinpoint Navigation */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '18px 22px',
+              borderRadius: 'var(--radius-lg)',
+              background: '#ffffff',
+              border: '3px solid #111111',
+              boxShadow: '6px 6px 0px #111111',
+              flexWrap: 'wrap',
+              gap: '14px',
+              marginTop: '16px'
+            }}>
+              <div>
+                <div style={{ color: '#111111', fontSize: '0.96rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={20} color="#16a34a" />
+                  <span>Telemetry Logged & Pinned to Live GIS Map</span>
                 </div>
-                <Link to="/map" className="btn btn-emerald" style={{ padding: '8px 16px', fontSize: '0.88rem' }}>
-                  <span>View on Live Map</span>
+                <div style={{ color: '#475569', fontSize: '0.82rem', marginTop: '3px' }}>
+                  {coords 
+                    ? `Exact Coordinates: Lat ${coords.lat.toFixed(5)}, Lon ${coords.lon.toFixed(5)} ${result.incident_id ? `(ID: ${result.incident_id.slice(0, 8)})` : ''}`
+                    : 'Water depth calculated. Click to locate in your area.'}
+                </div>
+              </div>
+
+              {coords ? (
+                <Link 
+                  to={`/map?lat=${coords.lat}&lon=${coords.lon}&incident_id=${result.incident_id || ''}&highlight=true`} 
+                  state={{ focusLat: coords.lat, focusLon: coords.lon, incidentId: result.incident_id }}
+                  className="btn btn-emerald" 
+                  style={{ padding: '12px 22px', fontSize: '0.92rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <MapPin size={18} />
+                  <span>Point to Exact Coordinate on Live Map</span>
+                  <ArrowRight size={16} />
+                </Link>
+              ) : (
+                <Link to="/map" className="btn btn-secondary" style={{ padding: '10px 18px', fontSize: '0.88rem' }}>
+                  <span>Open Live Map</span>
                   <ArrowRight size={14} />
                 </Link>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Authentication Modal Dialog */}
+        {showAuthModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.78)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '16px'
+          }}>
+            <div style={{
+              background: '#ffffff',
+              border: '3px solid #111111',
+              borderRadius: '12px',
+              padding: '28px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '8px 8px 0px #111111',
+              position: 'relative',
+              textAlign: 'center'
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowAuthModal(false)}
+                style={{
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#64748b'
+                }}
+              >
+                <X size={20} />
+              </button>
+
+              <div style={{
+                width: 58,
+                height: 58,
+                borderRadius: '50%',
+                background: '#eff6ff',
+                border: '2px solid #0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+                boxShadow: '2px 2px 0px #0284c7'
+              }}>
+                <Lock size={28} color="#0284c7" />
               </div>
-            )}
+
+              <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', margin: '0 0 8px 0' }}>
+                Sign In Required to Upload
+              </h3>
+
+              <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '22px' }}>
+                To verify waterlogging incident submissions and maintain accurate telemetry for municipal emergency teams, please sign in or create an account.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <Link
+                  to="/login"
+                  state={{ from: location }}
+                  className="btn btn-primary"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '0.95rem',
+                    fontWeight: 800,
+                    background: '#FFCE32',
+                    color: '#111111',
+                    border: '2px solid #111111',
+                    justifyContent: 'center',
+                    boxShadow: '3px 3px 0px #111111',
+                    textDecoration: 'none'
+                  }}
+                >
+                  <LogIn size={16} />
+                  <span>Sign In with Existing Account</span>
+                </Link>
+
+                <Link
+                  to="/register"
+                  state={{ from: location }}
+                  className="btn btn-secondary"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    fontSize: '0.9rem',
+                    fontWeight: 800,
+                    justifyContent: 'center',
+                    textDecoration: 'none'
+                  }}
+                >
+                  <span>Create New Citizen Account</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAuthModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748b',
+                    padding: '8px',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    marginTop: '4px'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

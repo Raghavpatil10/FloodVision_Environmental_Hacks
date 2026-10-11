@@ -34,15 +34,16 @@ def test_depth_formula_submersion_calculation():
 
 def test_api_analyze_endpoint():
     img_bytes = create_sample_image()
-    response = client.post(
-        "/api/analyze",
-        files={"file": ("test.jpg", img_bytes, "image/jpeg")},
-        data={"latitude": "19.0760", "longitude": "72.8777"}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "estimated_depth_cm" in data
-    assert "status_flag" in data
+    with TestClient(app) as test_c:
+        response = test_c.post(
+            "/api/analyze",
+            files={"file": ("test.jpg", img_bytes, "image/jpeg")},
+            data={"latitude": "19.0760", "longitude": "72.8777"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "estimated_depth_cm" in data
+        assert "status_flag" in data
     assert data["status_flag"] in ["Safe", "Caution", "Danger"]
     assert "annotated_image_url" in data
     assert "incident_id" in data
