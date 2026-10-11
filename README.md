@@ -12,7 +12,7 @@
 **Repository:** [https://github.com/Raghavpatil10/FloodVision_Environmental_Hacks](https://github.com/Raghavpatil10/FloodVision_Environmental_Hacks)  
 **Live Demo:** [http://43.204.111.44](http://43.204.111.44)  
 **API Docs (Swagger UI):** [http://43.204.111.44:8080/docs](http://43.204.111.44:8080/docs)  
-**Video Walkthrough (3 min):** [Add YouTube/Loom link here]  
+**Video Walkthrough (3 min):** [https://youtu.be/qHcq0A2kzT0]  
 
 ---
 
