@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: floodvision-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-floodvision-images-2026}
+      - DYNAMODB_TABLE_NAME=${DYNAMODB_TABLE_NAME:-floodvision_incidents}
+      - SNS_TOPIC_ARN=${SNS_TOPIC_ARN:-arn:aws:sns:us-east-1:149160851728:floodvision_critical_alerts}
+      - SECRET_KEY=${SECRET_KEY:-floodvision-auth-jwt-secret-key-prod-2026}
+      - COOKIE_SECURE=false
+      - COOKIE_SAMESITE=lax
+    volumes:
+      - backend-data:/code/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: floodvision-frontend
+    ports:
+      - "80:80"
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend-data:
