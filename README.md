@@ -1,4 +1,4 @@
-# 🌊 FloodVision: CV-Powered Waterlogging Depth Gauge & Hazard Alert Platform
+#  FloodVision: CV-Powered Waterlogging Depth Gauge & Hazard Alert Platform
 
 [![Environmental Hacks 2026](https://img.shields.io/badge/Environmental_Hacks_2026-Track_02:_Heat_&_Water-0284c7?style=for-the-badge)](https://github.com/Raghavpatil10/FloodVision_Environmental_Hacks)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%20%7C%203.13-blue.svg?style=for-the-badge&logo=python)](https://python.org)
