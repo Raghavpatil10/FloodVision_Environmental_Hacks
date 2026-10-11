@@ -21,7 +21,8 @@ export function AuthProvider({ children }) {
 
   const checkSession = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/auth/me`);
+      const baseUrl = getApiBaseUrl();
+      const res = await axios.get(`${baseUrl}/api/auth/me`);
       if (res.data && res.data.user) {
         setUser(res.data.user);
       } else {
@@ -36,7 +37,8 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, password, rememberMe = false) => {
-    const res = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+    const baseUrl = getApiBaseUrl();
+    const res = await axios.post(`${baseUrl}/api/auth/login`, {
       email,
       password,
       remember_me: rememberMe
@@ -47,7 +49,8 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (name, email, password, confirmPassword) => {
-    const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+    const baseUrl = getApiBaseUrl();
+    const res = await axios.post(`${baseUrl}/api/auth/register`, {
       name,
       email,
       password,
@@ -60,7 +63,8 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/logout`);
+      const baseUrl = getApiBaseUrl();
+      await axios.post(`${baseUrl}/api/auth/logout`);
     } catch (err) {
       console.warn("Logout request completed with notice:", err);
     } finally {
@@ -69,8 +73,9 @@ export function AuthProvider({ children }) {
   };
 
   const verifyEmail = async (token = null) => {
+    const baseUrl = getApiBaseUrl();
     const payload = token ? { token } : {};
-    const res = await axios.post(`${API_BASE_URL}/api/auth/verify-email`, payload);
+    const res = await axios.post(`${baseUrl}/api/auth/verify-email`, payload);
     if (res.data && res.data.user) {
       setUser(res.data.user);
     }

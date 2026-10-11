@@ -1,7 +1,20 @@
 import axios from 'axios';
 
-// Detect or fallback base URL (support both 8001 and 8000 seamlessly)
-export const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+function resolveDefaultBaseUrl() {
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+    const host = window.location.hostname;
+    // In production (deployed on server IP or domain), use relative path so Nginx reverse-proxies /api
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return '';
+    }
+  }
+  return 'http://localhost:8000';
+}
+
+export const DEFAULT_API_BASE_URL = resolveDefaultBaseUrl();
 
 let activeBaseUrl = DEFAULT_API_BASE_URL;
 
@@ -15,10 +28,17 @@ export function setApiBaseUrl(url) {
 
 /**
  * Fallback-aware API caller that transparently switches between port 8001 and 8000
- * if a network error or 404 occurs due to port mismatch.
+ * if a network error or 404 occurs due to port mismatch in local dev, or uses relative path in prod.
  */
 export async function fetchWithFallback(urlPath, options = {}) {
   const cleanPath = urlPath.startsWith('/') ? urlPath : `/${urlPath}`;
+  if (!activeBaseUrl) {
+    return await axios({
+      url: cleanPath,
+      timeout: options.timeout || 7000,
+      ...options
+    });
+  }
   const ports = activeBaseUrl.includes(':8001')
     ? [activeBaseUrl, activeBaseUrl.replace(':8001', ':8000')]
     : [activeBaseUrl, activeBaseUrl.replace(':8000', ':8001')];
