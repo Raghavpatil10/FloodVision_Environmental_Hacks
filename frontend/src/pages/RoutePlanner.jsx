@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { getUserLocation, searchLocations } from '../utils/geoUtils';
 import { 
   Navigation, 
   MapPin, 
@@ -17,7 +18,10 @@ import {
   Clock,
   ArrowUpDown,
   CheckCircle2,
-  Eye
+  Eye,
+  Search,
+  ShieldAlert,
+  LocateFixed
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -44,14 +48,28 @@ const createPinIcon = (color, label) => {
   });
 };
 
-const startIcon = createPinIcon('#10b981', 'Origin');
-const destIcon = createPinIcon('#06b6d4', 'Destination');
+const createHazardIcon = () => {
+  return new L.DivIcon({
+    className: 'hazard-pin-marker',
+    html: `
+      <div style="position: relative; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgba(239, 68, 68, 0.4); animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="width: 22px; height: 22px; border-radius: 50%; background: #ef4444; border: 2px solid #ffffff; box-shadow: 0 0 8px #ef4444; display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; font-weight: 900;">⚠</div>
+      </div>
+    `,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -17]
+  });
+};
 
-// Robust coordinate parser: handles degrees, cardinal (N/S/E/W), commas, spaces
+const startIcon = createPinIcon('#10b981', 'Origin');
+const destIcon = createPinIcon('#0284c7', 'Destination');
+
+// Coordinate parser (also accepts raw coordinates if entered)
 const parseCoordinates = (str) => {
   if (!str || typeof str !== 'string') return null;
   const cleaned = str.trim();
-  // Regex pattern matching: (float) [optional deg] [optional N/S] , (float) [optional deg] [optional E/W]
   const pattern = /([+-]?\d+(?:\.\d+)?)\s*°?\s*([NSns])?[\s,;]+([+-]?\d+(?:\.\d+)?)\s*°?\s*([EWew])?/;
   const match = cleaned.match(pattern);
   if (match) {
@@ -63,7 +81,6 @@ const parseCoordinates = (str) => {
       return { lat, lon };
     }
   }
-  // Fallback simple comma split
   const parts = cleaned.split(',');
   if (parts.length === 2) {
     const lat = parseFloat(parts[0].replace(/[^\d.-]/g, ''));
@@ -76,7 +93,7 @@ const parseCoordinates = (str) => {
 };
 
 // Auto-Fit Map Bounds Helper Component
-function AutoFitRouteBounds({ origin, destination, points }) {
+function AutoFitRouteBounds({ origin, destination, points, hazards }) {
   const map = useMap();
 
   useEffect(() => {
@@ -88,69 +105,176 @@ function AutoFitRouteBounds({ origin, destination, points }) {
       if (destination) coordsList.push([destination.lat, destination.lon]);
     }
 
+    if (hazards && hazards.length > 0) {
+      hazards.forEach(h => {
+        if (h.latitude && h.longitude) coordsList.push([h.latitude, h.longitude]);
+      });
+    }
+
     if (coordsList.length >= 2) {
       const bounds = L.latLngBounds(coordsList);
-      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     } else if (coordsList.length === 1) {
       map.setView(coordsList[0], 13);
     }
-  }, [origin, destination, points, map]);
+  }, [origin, destination, points, hazards, map]);
 
   return null;
 }
 
 const PRESETS = [
   {
-    name: 'Nagpur Route (Active Test)',
-    desc: 'Route from screenshot (21.1298° N, 79.0752° E)',
-    origin: '21.1298° N, 79.0752° E',
-    destination: '21.1390° N, 79.0631° E'
+    name: 'Sitabuldi → Civil Lines (Nagpur Flood Reroute Test)',
+    desc: 'Simulates path encountering waterlogged corridor and auto-rerouting around it',
+    origin: 'Sitabuldi, Nagpur',
+    destination: 'Civil Lines, Nagpur'
   },
   {
-    name: 'Bandra → BKC Corridor',
-    desc: 'Mumbai low-lying flood bypass',
-    origin: '19.0596, 72.8295',
-    destination: '19.0664, 72.8687'
+    name: 'Dharampeth → Nagpur Airport',
+    desc: 'West to South arterial route in Nagpur',
+    origin: 'Dharampeth, Nagpur',
+    destination: 'Dr. Babasaheb Ambedkar International Airport, Nagpur'
   },
   {
-    name: 'Dadar → Lower Parel',
-    desc: 'Hindmata underpass bypass',
-    origin: '19.0178, 72.8478',
-    destination: '18.9950, 72.8260'
+    name: 'Bandra West → BKC (Mumbai)',
+    desc: 'Low-lying flood bypass corridor in Mumbai',
+    origin: 'Bandra West, Mumbai',
+    destination: 'Bandra Kurla Complex, Mumbai'
+  },
+  {
+    name: 'Dadar → Lower Parel (Mumbai)',
+    desc: 'Monsoon waterlogging underpass bypass',
+    origin: 'Dadar, Mumbai',
+    destination: 'Lower Parel, Mumbai'
   }
 ];
 
 export default function RoutePlanner() {
-  const [origin, setOrigin] = useState('21.1298° N, 79.0752° E');
-  const [destination, setDestination] = useState('21.1390° N, 79.0631° E');
+  const [origin, setOrigin] = useState('Sitabuldi, Nagpur');
+  const [destination, setDestination] = useState('Civil Lines, Nagpur');
+  const [resolvedOriginCoords, setResolvedOriginCoords] = useState(null);
+  const [resolvedDestCoords, setResolvedDestCoords] = useState(null);
+
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [tileMode, setTileMode] = useState('dark');
+  const [tileMode, setTileMode] = useState('street');
   const [mobileTab, setMobileTab] = useState('planner'); // 'planner' | 'map'
   const [showRouteLegend, setShowRouteLegend] = useState(false);
 
-  const origCoords = parseCoordinates(origin);
-  const destCoords = parseCoordinates(destination);
+  // Autocomplete suggestion states
+  const [originSuggestions, setOriginSuggestions] = useState([]);
+  const [destSuggestions, setDestSuggestions] = useState([]);
+  const [activeSuggestionField, setActiveSuggestionField] = useState(null);
+
+  const debounceTimerRef = useRef(null);
+
+  // Trigger geocode search on typing
+  const handleLocationInputChange = (val, field) => {
+    if (field === 'origin') {
+      setOrigin(val);
+      setResolvedOriginCoords(parseCoordinates(val));
+    } else {
+      setDestination(val);
+      setResolvedDestCoords(parseCoordinates(val));
+    }
+    setActiveSuggestionField(field);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(async () => {
+      if (val.trim().length >= 3 && !parseCoordinates(val)) {
+        const results = await searchLocations(val.trim());
+        if (field === 'origin') {
+          setOriginSuggestions(results);
+        } else {
+          setDestSuggestions(results);
+        }
+      } else {
+        if (field === 'origin') setOriginSuggestions([]);
+        else setDestSuggestions([]);
+      }
+    }, 350);
+  };
+
+  const handleSelectSuggestion = (item, field) => {
+    if (field === 'origin') {
+      setOrigin(item.name || item.display_name.split(',')[0]);
+      setResolvedOriginCoords({ lat: item.lat, lon: item.lon });
+      setOriginSuggestions([]);
+    } else {
+      setDestination(item.name || item.display_name.split(',')[0]);
+      setResolvedDestCoords({ lat: item.lat, lon: item.lon });
+      setDestSuggestions([]);
+    }
+    setActiveSuggestionField(null);
+    setRouteData(null);
+  };
+
+  // Quick fill current location for Origin
+  const handleUseCurrentLocation = async () => {
+    setLoading(true);
+    try {
+      const loc = await getUserLocation();
+      const name = loc.city ? `Current Location (${loc.city})` : 'Current Location';
+      setOrigin(name);
+      setResolvedOriginCoords({ lat: loc.lat, lon: loc.lon });
+      setRouteData(null);
+    } catch (e) {
+      console.warn("Could not get user location:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePlanRoute = async (e) => {
     if (e) e.preventDefault();
-    if (!origCoords || !destCoords) {
-      setError("Please enter valid coordinates (e.g. '21.1298° N, 79.0752° E' or '19.0596, 72.8295').");
+    setError(null);
+    setRouteData(null);
+    setOriginSuggestions([]);
+    setDestSuggestions([]);
+
+    if (!origin.trim() || !destination.trim()) {
+      setError("Please enter both Start Location and Destination.");
       return;
     }
 
     setLoading(true);
-    setError(null);
-    setRouteData(null);
 
     try {
+      // 1. Resolve Origin Coordinates (if not already parsed)
+      let oCoords = resolvedOriginCoords || parseCoordinates(origin);
+      if (!oCoords) {
+        const oResults = await searchLocations(origin.trim());
+        if (oResults && oResults.length > 0) {
+          oCoords = { lat: oResults[0].lat, lon: oResults[0].lon };
+          setResolvedOriginCoords(oCoords);
+        } else {
+          throw new Error(`Could not locate start location: "${origin}". Please check spelling or include city.`);
+        }
+      }
+
+      // 2. Resolve Destination Coordinates (if not already parsed)
+      let dCoords = resolvedDestCoords || parseCoordinates(destination);
+      if (!dCoords) {
+        const dResults = await searchLocations(destination.trim());
+        if (dResults && dResults.length > 0) {
+          dCoords = { lat: dResults[0].lat, lon: dResults[0].lon };
+          setResolvedDestCoords(dCoords);
+        } else {
+          throw new Error(`Could not locate destination: "${destination}". Please check spelling or include city.`);
+        }
+      }
+
+      // 3. Plan route with dynamic hazard avoidance
       const res = await axios.post(`${API_BASE_URL}/api/routes/plan`, {
-        origin: origCoords,
-        destination: destCoords
+        origin: oCoords,
+        destination: dCoords,
+        origin_name: origin,
+        destination_name: destination
       });
+
       setRouteData(res.data);
-      // On mobile devices, automatically switch to map view once route is ready
+
       if (window.innerWidth <= 920) {
         setMobileTab('map');
       }
@@ -162,20 +286,25 @@ export default function RoutePlanner() {
   };
 
   const handleSwap = () => {
-    const temp = origin;
+    const tempName = origin;
+    const tempCoords = resolvedOriginCoords;
     setOrigin(destination);
-    setDestination(temp);
+    setResolvedOriginCoords(resolvedDestCoords);
+    setDestination(tempName);
+    setResolvedDestCoords(tempCoords);
     setRouteData(null);
   };
 
   const handleApplyPreset = (p) => {
     setOrigin(p.origin);
     setDestination(p.destination);
+    setResolvedOriginCoords(null);
+    setResolvedDestCoords(null);
     setError(null);
     setRouteData(null);
   };
 
-  // Determine polyline positions
+  // Determine polyline positions for recommended route
   const getPolylinePositions = () => {
     if (!routeData) return [];
     if (routeData.recommended_route?.coordinates && routeData.recommended_route.coordinates.length > 0) {
@@ -190,16 +319,31 @@ export default function RoutePlanner() {
     return [];
   };
 
-  const polylinePositions = getPolylinePositions();
-  const routeScore = routeData?.recommended_route?.overall_safety_score ?? 100;
-  const polylineColor = routeScore < 50 ? '#ef4444' : (routeScore < 75 ? '#f59e0b' : '#10b981');
+  // Determine avoided hazardous route polyline if available
+  const getAvoidedPolylinePositions = () => {
+    if (!routeData || !routeData.alternative_routes || routeData.alternative_routes.length === 0) return [];
+    const blockedAlt = routeData.alternative_routes.find(alt => alt.critical_hazards > 0 || alt.overall_safety_score < 70);
+    if (blockedAlt && blockedAlt.coordinates && blockedAlt.coordinates.length > 0) {
+      return blockedAlt.coordinates.map(c => [c.lat, c.lon]);
+    }
+    return [];
+  };
 
-  // Default initial map center
-  const initialCenter = origCoords ? [origCoords.lat, origCoords.lon] : [21.1298, 79.0752];
+  const polylinePositions = getPolylinePositions();
+  const avoidedPolylinePositions = getAvoidedPolylinePositions();
+
+  const isRerouted = routeData?.recommended_route?.is_rerouted;
+  const routeScore = routeData?.recommended_route?.overall_safety_score ?? 100;
+  const polylineColor = isRerouted ? '#10b981' : (routeScore < 50 ? '#ef4444' : (routeScore < 75 ? '#f59e0b' : '#10b981'));
+
+  const avoidedHazards = routeData?.recommended_route?.hazard_incidents || 
+    (routeData?.alternative_routes && routeData.alternative_routes[0]?.hazard_incidents) || [];
+
+  const initialCenter = resolvedOriginCoords ? [resolvedOriginCoords.lat, resolvedOriginCoords.lon] : [21.1463, 79.0849];
 
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
-      {/* Mobile Tab Switcher for Phone View */}
+      {/* Mobile Tab Switcher */}
       <div className="mobile-route-switcher">
         <button
           type="button"
@@ -253,46 +397,49 @@ export default function RoutePlanner() {
         <div 
           className={`glass-card ${mobileTab !== 'planner' ? 'route-panel-hidden' : ''}`} 
           style={{ 
-            padding: '20px', 
-            color: '#f8fafc'
+            padding: '24px', 
+            background: '#ffffff',
+            border: '3px solid #111111',
+            boxShadow: '6px 6px 0px #111111',
+            color: '#111111'
           }}
         >
           {/* Header */}
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
               <div style={{
-                width: 34, height: 34, borderRadius: '8px', 
-                background: 'rgba(124, 58, 237, 0.2)', display: 'flex', 
+                width: 36, height: 36, borderRadius: '8px', 
+                background: '#FFCE32', border: '2px solid #111111', display: 'flex', 
                 alignItems: 'center', justifyContent: 'center'
               }}>
-                <Compass size={20} color="#c084fc" />
+                <Compass size={20} color="#111111" />
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>
+              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#111111' }}>
                 Safe Route Planner
               </h2>
             </div>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.84rem', lineHeight: 1.45 }}>
-              Calculates vehicle-safe routing weighted against real-time waterlogging depths to prevent engine stall.
+            <p style={{ margin: 0, color: '#475569', fontSize: '0.86rem', lineHeight: 1.5 }}>
+              Enter start and end location names. FloodVision monitors active waterlogging reports along the path and dynamically calculates safe detours.
             </p>
           </div>
 
           {/* Quick Demo Presets */}
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '18px' }}>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '6px', 
-              fontSize: '0.76rem', 
-              fontWeight: 700, 
-              color: '#94a3b8', 
+              fontSize: '0.78rem', 
+              fontWeight: 800, 
+              color: '#475569', 
               textTransform: 'uppercase', 
               letterSpacing: '0.05em',
-              marginBottom: '6px'
+              marginBottom: '8px'
             }}>
-              <Sparkles size={13} color="#38bdf8" />
-              <span>Quick Demo Scenarios</span>
+              <Sparkles size={14} color="#0284c7" />
+              <span>Tested Route Scenarios</span>
             </div>
-            <div className="presets-scroll-strip">
+            <div className="presets-scroll-strip" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
               {PRESETS.map((p, idx) => (
                 <button
                   key={idx}
@@ -300,94 +447,226 @@ export default function RoutePlanner() {
                   onClick={() => handleApplyPreset(p)}
                   className="chip-btn"
                   title={p.desc}
-                  style={{ whiteSpace: 'nowrap' }}
+                  style={{
+                    whiteSpace: 'nowrap',
+                    background: '#f8fafc',
+                    border: '2px solid #111111',
+                    boxShadow: '2px 2px 0px #111111',
+                    color: '#111111',
+                    padding: '5px 10px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700
+                  }}
                 >
-                  <MapPin size={12} color="#38bdf8" />
+                  <MapPin size={12} color="#0284c7" />
                   <span>{p.name}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handlePlanRoute}>
-            <div className="form-group">
-              <label className="form-label" style={{ color: '#94a3b8' }}>
-                <MapPin size={14} color="#10b981" />
-                <span>Origin (Lat, Lon):</span>
-              </label>
-              <input 
-                className="form-input font-mono"
-                value={origin} 
-                onChange={e => setOrigin(e.target.value)} 
-                placeholder="e.g. 21.1298° N, 79.0752° E" 
-              />
-              <div className="coord-feedback">
-                {origCoords ? (
-                  <span className="coord-valid">
-                    ✓ Parsed: {origCoords.lat.toFixed(4)}, {origCoords.lon.toFixed(4)}
-                  </span>
-                ) : (
-                  <span className="coord-hint">
-                    Enter coordinates (e.g. 21.1298° N, 79.0752° E)
-                  </span>
-                )}
+          {/* Form with Location Names */}
+          <form onSubmit={handlePlanRoute} style={{ position: 'relative' }}>
+            {/* Origin Input */}
+            <div className="form-group" style={{ position: 'relative', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="form-label" style={{ color: '#111111', fontWeight: 800, fontSize: '0.86rem', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <MapPin size={15} color="#16a34a" />
+                  <span>Start Location (Name or Landmark):</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  className="btn"
+                  style={{
+                    background: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #0284c7',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <LocateFixed size={12} />
+                  <span>Use My Location</span>
+                </button>
               </div>
+
+              <input 
+                className="form-input"
+                value={origin} 
+                onChange={e => handleLocationInputChange(e.target.value, 'origin')}
+                onFocus={() => setActiveSuggestionField('origin')}
+                placeholder="e.g. Sitabuldi, Nagpur or Dharampeth" 
+                style={{
+                  border: '2px solid #111111',
+                  borderRadius: '6px',
+                  padding: '10px 14px',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  width: '100%',
+                  background: '#ffffff',
+                  color: '#111111'
+                }}
+              />
+
+              {/* Origin Autocomplete Suggestions */}
+              {activeSuggestionField === 'origin' && originSuggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#ffffff',
+                  border: '2px solid #111111',
+                  borderRadius: '6px',
+                  boxShadow: '4px 4px 0px #111111',
+                  zIndex: 2000,
+                  maxHeight: '180px',
+                  overflowY: 'auto'
+                }}>
+                  {originSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectSuggestion(item, 'origin')}
+                      style={{
+                        padding: '8px 12px',
+                        borderBottom: '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        fontSize: '0.82rem',
+                        color: '#111111'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+                    >
+                      <div style={{ fontWeight: 800 }}>{item.name}</div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.display_name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {resolvedOriginCoords && (
+                <div style={{ fontSize: '0.74rem', color: '#15803d', fontWeight: 700, marginTop: '4px' }}>
+                  ✓ Pinned: Lat {resolvedOriginCoords.lat.toFixed(4)}, Lon {resolvedOriginCoords.lon.toFixed(4)}
+                </div>
+              )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0 12px 0' }}>
+            {/* Swap Directions Button */}
+            <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0 10px 0' }}>
               <button 
                 type="button" 
                 onClick={handleSwap} 
                 className="chip-btn"
-                style={{ padding: '4px 12px', fontSize: '0.76rem' }}
-                title="Swap Origin and Destination"
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  background: '#ffffff',
+                  border: '2px solid #111111',
+                  boxShadow: '2px 2px 0px #111111',
+                  color: '#111111'
+                }}
+                title="Swap Start and Destination"
               >
-                <ArrowUpDown size={12} />
-                <span>Swap Directions</span>
+                <ArrowUpDown size={13} />
+                <span>Swap Locations</span>
               </button>
             </div>
 
-            <div className="form-group">
-              <label className="form-label" style={{ color: '#94a3b8' }}>
-                <Flag size={14} color="#06b6d4" />
-                <span>Destination (Lat, Lon):</span>
+            {/* Destination Input */}
+            <div className="form-group" style={{ position: 'relative', marginBottom: '18px' }}>
+              <label className="form-label" style={{ color: '#111111', fontWeight: 800, fontSize: '0.86rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Flag size={15} color="#0284c7" />
+                <span>Destination (Name or Landmark):</span>
               </label>
               <input 
-                className="form-input font-mono"
+                className="form-input"
                 value={destination} 
-                onChange={e => setDestination(e.target.value)} 
-                placeholder="e.g. 21.1390° N, 79.0631° E" 
+                onChange={e => handleLocationInputChange(e.target.value, 'destination')}
+                onFocus={() => setActiveSuggestionField('destination')}
+                placeholder="e.g. Civil Lines, Nagpur or Nagpur Airport" 
+                style={{
+                  border: '2px solid #111111',
+                  borderRadius: '6px',
+                  padding: '10px 14px',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  width: '100%',
+                  background: '#ffffff',
+                  color: '#111111'
+                }}
               />
-              <div className="coord-feedback">
-                {destCoords ? (
-                  <span className="coord-valid">
-                    ✓ Parsed: {destCoords.lat.toFixed(4)}, {destCoords.lon.toFixed(4)}
-                  </span>
-                ) : (
-                  <span className="coord-hint">
-                    Enter coordinates (e.g. 21.1390° N, 79.0631° E)
-                  </span>
-                )}
-              </div>
+
+              {/* Destination Autocomplete Suggestions */}
+              {activeSuggestionField === 'destination' && destSuggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: '#ffffff',
+                  border: '2px solid #111111',
+                  borderRadius: '6px',
+                  boxShadow: '4px 4px 0px #111111',
+                  zIndex: 2000,
+                  maxHeight: '180px',
+                  overflowY: 'auto'
+                }}>
+                  {destSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectSuggestion(item, 'destination')}
+                      style={{
+                        padding: '8px 12px',
+                        borderBottom: '1px solid #e2e8f0',
+                        cursor: 'pointer',
+                        fontSize: '0.82rem',
+                        color: '#111111'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#f1f5f9'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+                    >
+                      <div style={{ fontWeight: 800 }}>{item.name}</div>
+                      <div style={{ fontSize: '0.74rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.display_name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {resolvedDestCoords && (
+                <div style={{ fontSize: '0.74rem', color: '#0369a1', fontWeight: 700, marginTop: '4px' }}>
+                  ✓ Pinned: Lat {resolvedDestCoords.lat.toFixed(4)}, Lon {resolvedDestCoords.lon.toFixed(4)}
+                </div>
+              )}
             </div>
 
             <button 
               type="submit" 
-              disabled={loading || !origCoords || !destCoords}
-              className="btn btn-purple"
-              style={{ width: '100%', padding: '13px', fontSize: '1rem', marginTop: '8px' }}
+              disabled={loading || !origin.trim() || !destination.trim()}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '14px', fontSize: '1rem', fontWeight: 800 }}
             >
               {loading ? (
                 <>
-                  <RefreshCw size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                  <span>Evaluating Flood Corridors...</span>
+                  <RefreshCw size={18} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                  <span>Evaluating Flood Corridors & Safety...</span>
                 </>
               ) : (
                 <>
-                  <Navigation size={16} />
-                  <span>Find Safe Route</span>
-                  <ArrowRight size={16} />
+                  <Navigation size={18} />
+                  <span>Plan Safe Route (Auto-Reroute Active)</span>
+                  <ArrowRight size={18} />
                 </>
               )}
             </button>
@@ -399,50 +678,85 @@ export default function RoutePlanner() {
               marginTop: '16px',
               padding: '12px 16px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              color: '#f87171',
+              background: '#fee2e2',
+              border: '2px solid #ef4444',
+              color: '#b91c1c',
               fontSize: '0.86rem',
+              fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               gap: '8px'
             }}>
-              <AlertTriangle size={16} />
+              <AlertTriangle size={18} />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Route Results */}
+          {/* Route Results & Reroute Banner */}
           {routeData && routeData.recommended_route && (
-            <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-glass)', paddingTop: '20px' }}>
+            <div style={{ marginTop: '24px', borderTop: '2px dashed #cbd5e1', paddingTop: '20px' }}>
+              
+              {/* Active Reroute Badge Banner */}
+              {isRerouted && (
+                <div style={{
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  background: '#fef2f2',
+                  border: '2px solid #ef4444',
+                  boxShadow: '3px 3px 0px #ef4444',
+                  marginBottom: '16px',
+                  color: '#991b1b'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, fontSize: '0.94rem' }}>
+                    <ShieldAlert size={18} color="#dc2626" />
+                    <span>⚠️ Hazard Detected: Route Rerouted Around Flood!</span>
+                  </div>
+                  <div style={{ fontSize: '0.82rem', marginTop: '4px', lineHeight: 1.45 }}>
+                    A direct waterlogged corridor was detected. FloodVision actively recalculated a detour via clear roads to prevent vehicle stall.
+                  </div>
+                  {avoidedHazards.length > 0 && (
+                    <div style={{ fontSize: '0.78rem', marginTop: '6px', fontWeight: 700, color: '#dc2626' }}>
+                      Bypassed Hazard: {avoidedHazards[0].estimated_depth_cm} cm water depth near Lat {avoidedHazards[0].latitude?.toFixed(4)}, Lon {avoidedHazards[0].longitude?.toFixed(4)}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span style={{ fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: '0.8rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800 }}>
                   Optimal Safe Navigation
                 </span>
                 <span className={`badge ${routeScore < 50 ? 'badge-danger' : 'badge-safe'}`}>
                   <ShieldCheck size={14} />
-                  <span>{routeScore < 50 ? 'High Risk' : 'Recommended'}</span>
+                  <span>{isRerouted ? 'Safe Detour Active' : (routeScore < 50 ? 'High Risk' : 'Clear Route')}</span>
                 </span>
               </div>
 
               {/* Recommended Route Card */}
-              <div className={`route-card ${routeScore < 50 ? 'route-card-danger' : 'route-card-safe'}`}>
+              <div style={{
+                background: isRerouted ? '#f0fdf4' : '#ffffff',
+                border: '3px solid #111111',
+                boxShadow: '4px 4px 0px #111111',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '14px'
+              }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center', marginBottom: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Distance</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Distance</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: '#0284c7' }}>
                       {(routeData.recommended_route.total_distance_m / 1000).toFixed(2)} <span style={{ fontSize: '0.8rem' }}>km</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Est. Time</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#f8fafc' }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Est. Time</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: '#111111' }}>
                       {Math.max(1, Math.round(routeData.recommended_route.total_duration_s / 60))} <span style={{ fontSize: '0.8rem' }}>min</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Safety</div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: polylineColor }}>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Safety Index</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: polylineColor }}>
                       {routeData.recommended_route.overall_safety_score} <span style={{ fontSize: '0.8rem' }}>/100</span>
                     </div>
                   </div>
@@ -450,43 +764,52 @@ export default function RoutePlanner() {
 
                 <div style={{ 
                   fontSize: '0.88rem', 
-                  color: '#f8fafc', 
-                  borderTop: '1px solid rgba(255, 255, 255, 0.1)', 
+                  color: '#111111', 
+                  borderTop: '1px solid #e2e8f0', 
                   paddingTop: '10px',
                   lineHeight: 1.45
                 }}>
-                  <strong style={{ color: polylineColor }}>Reason: </strong>
-                  {routeData.recommended_route.recommendation_reason || "No known flood incidents along this route."}
+                  <strong style={{ color: polylineColor }}>Navigation Note: </strong>
+                  {routeData.recommended_route.recommendation_reason || "Direct route clear of recorded waterlogging."}
                 </div>
               </div>
 
               {/* Alternative Routes Comparison */}
               {routeData.alternative_routes && routeData.alternative_routes.length > 0 && (
-                <div style={{ marginTop: '16px' }}>
-                  <div style={{ fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                    Alternative Options
+                <div>
+                  <div style={{ fontSize: '0.78rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, marginBottom: '8px' }}>
+                    Compared Direct Corridors
                   </div>
                   {routeData.alternative_routes.map((alt, idx) => (
-                    <div key={idx} className="route-card route-card-alt" style={{ padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#f8fafc' }}>Option {idx + 1} (Direct)</div>
-                          <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
-                            {(alt.total_distance_m / 1000).toFixed(2)} km • {Math.round(alt.total_duration_s / 60)} min
-                          </div>
+                    <div key={idx} style={{
+                      background: '#ffffff',
+                      border: '2px solid #111111',
+                      boxShadow: '2px 2px 0px #111111',
+                      borderRadius: '6px',
+                      padding: '10px 12px',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#111111' }}>
+                          Option {idx + 1}: {alt.critical_hazards > 0 ? 'Direct Route (Blocked by Flood ⚠)' : 'Alternative Corridor'}
                         </div>
-                        <div style={{ 
-                          fontSize: '0.85rem', 
-                          fontWeight: 700, 
-                          fontFamily: 'var(--font-mono)',
-                          color: alt.overall_safety_score < 50 ? '#f87171' : '#fbbf24',
-                          background: alt.overall_safety_score < 50 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                          padding: '4px 10px',
-                          borderRadius: '12px',
-                          border: `1px solid ${alt.overall_safety_score < 50 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
-                        }}>
-                          Score: {alt.overall_safety_score}/100
+                        <div style={{ fontSize: '0.78rem', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                          {(alt.total_distance_m / 1000).toFixed(2)} km • {Math.round(alt.total_duration_s / 60)} min
                         </div>
+                      </div>
+                      <div style={{ 
+                        fontSize: '0.82rem', 
+                        fontWeight: 800, 
+                        color: alt.overall_safety_score < 50 ? '#dc2626' : '#d97706',
+                        background: alt.overall_safety_score < 50 ? '#fee2e2' : '#fef3c7',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid #111111'
+                      }}>
+                        Score: {alt.overall_safety_score}/100
                       </div>
                     </div>
                   ))}
@@ -496,19 +819,19 @@ export default function RoutePlanner() {
           )}
         </div>
 
-        {/* Right Column: Interactive Dark Map */}
+        {/* Right Column: Interactive Map */}
         <div 
           className={`route-planner-map ${mobileTab !== 'map' ? 'route-panel-hidden' : ''}`}
           style={{ 
             position: 'relative', 
-            height: '75vh', 
+            height: '78vh', 
             borderRadius: 'var(--radius-lg)', 
             overflow: 'hidden', 
-            border: '2px solid #111111',
+            border: '3px solid #111111',
             boxShadow: 'var(--shadow-md)'
           }}
         >
-          {/* Mobile Back to Setup Button (only shown on mobile in map view) */}
+          {/* Mobile Back to Setup Button */}
           <div style={{
             position: 'absolute',
             top: 12,
@@ -529,7 +852,7 @@ export default function RoutePlanner() {
                 fontWeight: 800
               }}
             >
-              <span>⬅️ Edit Route</span>
+              <span>⬅️ Edit Locations</span>
             </button>
           </div>
 
@@ -580,20 +903,24 @@ export default function RoutePlanner() {
             </button>
           </div>
 
-          {/* Floating Map Legend (Desktop always, Mobile on toggle) */}
+          {/* Floating Map Legend */}
           <div 
             className={`map-overlay-panel route-legend-overlay ${showRouteLegend ? 'mobile-open' : ''}`} 
             style={{ 
               top: 12, 
               right: 12, 
-              width: '220px', 
-              maxWidth: 'calc(100vw - 32px)' 
+              width: '240px', 
+              maxWidth: 'calc(100vw - 32px)',
+              background: '#ffffff',
+              border: '2px solid #111111',
+              boxShadow: '4px 4px 0px #111111',
+              padding: '12px'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Layers size={14} color="#38bdf8" />
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#111111' }}>
+                <Layers size={14} color="#0284c7" />
+                <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#111111' }}>
                   Route Corridors
                 </span>
               </div>
@@ -608,12 +935,12 @@ export default function RoutePlanner() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 18, height: 4, background: '#10b981', borderRadius: '2px', boxShadow: '0 0 6px #10b981' }}></div>
-                <span style={{ color: '#15803d', fontWeight: 700 }}>Safe Pass Corridor</span>
+                <div style={{ width: 18, height: 4, background: '#10b981', borderRadius: '2px' }}></div>
+                <span style={{ color: '#15803d', fontWeight: 800 }}>Safe Detour / Clear Pass</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 18, height: 4, background: '#ef4444', borderRadius: '2px', boxShadow: '0 0 6px #ef4444' }}></div>
-                <span style={{ color: '#b91c1c', fontWeight: 700 }}>Hazard Zone / Stall Risk</span>
+                <div style={{ width: 18, height: 4, background: '#ef4444', borderRadius: '2px', borderStyle: 'dashed' }}></div>
+                <span style={{ color: '#b91c1c', fontWeight: 800 }}>Avoided Flood Hazard Zone</span>
               </div>
             </div>
           </div>
@@ -629,21 +956,21 @@ export default function RoutePlanner() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
 
-            {/* Auto-fit map to origin/dest/polyline */}
             <AutoFitRouteBounds 
-              origin={origCoords} 
-              destination={destCoords} 
+              origin={resolvedOriginCoords} 
+              destination={resolvedDestCoords} 
               points={routeData?.recommended_route?.coordinates} 
+              hazards={avoidedHazards}
             />
 
             {/* Origin Marker */}
-            {origCoords && (
-              <Marker position={[origCoords.lat, origCoords.lon]} icon={startIcon}>
+            {resolvedOriginCoords && (
+              <Marker position={[resolvedOriginCoords.lat, resolvedOriginCoords.lon]} icon={startIcon}>
                 <Popup>
-                  <div style={{ fontFamily: 'var(--font-sans)', padding: '2px', color: '#f8fafc' }}>
-                    <strong style={{ color: '#10b981' }}>Departure Origin</strong>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
-                      {origCoords.lat.toFixed(4)}, {origCoords.lon.toFixed(4)}
+                  <div style={{ fontFamily: 'var(--font-sans)', padding: '2px', color: '#111111' }}>
+                    <strong style={{ color: '#15803d' }}>Departure: {origin}</strong>
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                      Lat: {resolvedOriginCoords.lat.toFixed(4)}, Lon: {resolvedOriginCoords.lon.toFixed(4)}
                     </div>
                   </div>
                 </Popup>
@@ -651,23 +978,63 @@ export default function RoutePlanner() {
             )}
 
             {/* Destination Marker */}
-            {destCoords && (
-              <Marker position={[destCoords.lat, destCoords.lon]} icon={destIcon}>
+            {resolvedDestCoords && (
+              <Marker position={[resolvedDestCoords.lat, resolvedDestCoords.lon]} icon={destIcon}>
                 <Popup>
-                  <div style={{ fontFamily: 'var(--font-sans)', padding: '2px', color: '#f8fafc' }}>
-                    <strong style={{ color: '#06b6d4' }}>Target Destination</strong>
-                    <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
-                      {destCoords.lat.toFixed(4)}, {destCoords.lon.toFixed(4)}
+                  <div style={{ fontFamily: 'var(--font-sans)', padding: '2px', color: '#111111' }}>
+                    <strong style={{ color: '#0369a1' }}>Destination: {destination}</strong>
+                    <div style={{ fontSize: '0.74rem', color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                      Lat: {resolvedDestCoords.lat.toFixed(4)}, Lon: {resolvedDestCoords.lon.toFixed(4)}
                     </div>
                   </div>
                 </Popup>
               </Marker>
             )}
 
-            {/* Prominent glowing polyline */}
+            {/* Avoided Flood Hazard Marker(s) on Map */}
+            {avoidedHazards.map((hazard, hIdx) => {
+              if (!hazard.latitude || !hazard.longitude) return null;
+              return (
+                <Marker 
+                  key={hIdx} 
+                  position={[hazard.latitude, hazard.longitude]} 
+                  icon={createHazardIcon()}
+                >
+                  <Popup>
+                    <div style={{ minWidth: '180px', fontFamily: 'var(--font-sans)', color: '#111111' }}>
+                      <div style={{ color: '#dc2626', fontWeight: 800, fontSize: '0.86rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ShieldAlert size={16} />
+                        <span>Avoided Flood Hazard Zone</span>
+                      </div>
+                      <div style={{ fontSize: '0.82rem', margin: '4px 0' }}>
+                        Water Depth: <strong>{hazard.estimated_depth_cm} cm</strong> ({hazard.risk_level?.toUpperCase() || 'CRITICAL'})
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#15803d', fontWeight: 700 }}>
+                        ✓ Safe navigation steered detour around this spot.
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* Avoided Hazardous Direct Route (Rendered in dashed red) */}
+            {avoidedPolylinePositions.length >= 2 && (
+              <Polyline 
+                positions={avoidedPolylinePositions} 
+                pathOptions={{
+                  color: '#ef4444',
+                  weight: 4,
+                  opacity: 0.6,
+                  dashArray: '8, 8',
+                  lineCap: 'round'
+                }}
+              />
+            )}
+
+            {/* Recommended Safe Polyline (Rendered in Emerald Green) */}
             {polylinePositions.length >= 2 && (
               <>
-                {/* Background glow stroke */}
                 <Polyline 
                   positions={polylinePositions} 
                   pathOptions={{
@@ -678,7 +1045,6 @@ export default function RoutePlanner() {
                     lineJoin: 'round'
                   }}
                 />
-                {/* Core bright stroke */}
                 <Polyline 
                   positions={polylinePositions} 
                   pathOptions={{
@@ -692,39 +1058,6 @@ export default function RoutePlanner() {
               </>
             )}
           </MapContainer>
-
-          {/* Mobile Bottom Route Summary Card */}
-          {routeData && routeData.recommended_route && (
-            <div className="mobile-route-bottom-card">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span className={`badge ${routeScore < 50 ? 'badge-danger' : 'badge-safe'}`} style={{ padding: '3px 8px', fontSize: '0.72rem' }}>
-                  <ShieldCheck size={12} />
-                  <span>{routeScore < 50 ? 'High Risk' : 'Recommended Route'}</span>
-                </span>
-                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: polylineColor }}>
-                  Score: {routeScore}/100
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#111111', fontFamily: 'var(--font-mono)' }}>
-                    {(routeData.recommended_route.total_distance_m / 1000).toFixed(1)} km 
-                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748b', marginLeft: '6px' }}>
-                      ({Math.max(1, Math.round(routeData.recommended_route.total_duration_s / 60))} min)
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMobileTab('planner')}
-                  className="btn btn-secondary"
-                  style={{ padding: '6px 12px', fontSize: '0.76rem', fontWeight: 800 }}
-                >
-                  Options & Turns
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

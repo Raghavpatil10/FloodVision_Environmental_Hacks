@@ -13,11 +13,11 @@ export default function Home() {
           gap: '8px',
           padding: '6px 16px',
           borderRadius: '30px',
-          background: 'rgba(6, 182, 212, 0.1)',
-          border: '1px solid rgba(6, 182, 212, 0.3)',
-          color: '#38bdf8',
+          background: 'rgba(2, 132, 199, 0.12)',
+          border: '1px solid rgba(2, 132, 199, 0.35)',
+          color: '#0284c7',
           fontSize: '0.85rem',
-          fontWeight: 600,
+          fontWeight: 700,
           marginBottom: '24px'
         }}>
           <Activity size={14} className="pulse-dot" />
@@ -31,9 +31,7 @@ export default function Home() {
           lineHeight: 1.15,
           margin: '0 auto 20px auto',
           maxWidth: '850px',
-          background: 'linear-gradient(180deg, #ffffff 30%, #94a3b8 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
+          color: 'var(--text-primary)'
         }}>
           CV-Powered Waterlogging Depth Gauge & Hazard Alert
         </h1>
@@ -86,7 +84,7 @@ export default function Home() {
           }}>
             <Camera size={24} color="#38bdf8" />
           </div>
-          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', color: '#f8fafc' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', color: 'var(--text-primary)' }}>
             CV Water Depth Gauge
           </h3>
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.5, flex: 1, marginBottom: '20px' }}>
@@ -114,7 +112,7 @@ export default function Home() {
           }}>
             <MapPin size={24} color="#34d399" />
           </div>
-          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', color: '#f8fafc' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', color: 'var(--text-primary)' }}>
             Live GIS Hazard Map
           </h3>
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.5, flex: 1, marginBottom: '20px' }}>
@@ -142,7 +140,7 @@ export default function Home() {
           }}>
             <Navigation size={24} color="#a78bfa" />
           </div>
-          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', color: '#f8fafc' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', color: 'var(--text-primary)' }}>
             Safe Flood-Free Routing
           </h3>
           <p style={{ color: 'var(--text-secondary)', lineHeight: 1.5, flex: 1, marginBottom: '20px' }}>
