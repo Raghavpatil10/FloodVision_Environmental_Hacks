@@ -10,8 +10,8 @@
 **Built for Environmental Hacks 2026 | Track 02: Heat and Water**  
 **Team:** TeamAPEX  
 **Repository:** [https://github.com/Raghavpatil10/FloodVision_Environmental_Hacks](https://github.com/Raghavpatil10/FloodVision_Environmental_Hacks)  
-**Live Demo:** [Add your Amplify URL here]  
-**API Docs:** [Add your App Runner Swagger URL here]/docs  
+**Live Demo:** [http://43.204.111.44](http://43.204.111.44)  
+**API Docs (Swagger UI):** [http://43.204.111.44/docs](http://43.204.111.44/docs)  
 **Video Walkthrough (3 min):** [Add YouTube/Loom link here]  
 
 ---
