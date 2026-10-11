@@ -73,47 +73,8 @@ $$D = H_{\text{nominal}} \times \left(1 - \frac{AR_{\text{observed}}}{AR_{\text{
 ---
 
 ## 🛠️ System Architecture
+<img width="1408" height="768" alt="Gemini_Generated_Image_a822vqa822vqa822" src="https://github.com/user-attachments/assets/59bef9e0-3a4f-4588-a507-314a53cd86d1" />
 
-```text
-  ┌─────────────────────────────────────────────────────────────┐
-  │                 Citizen / Traffic Warden Device             │
-  │     (Mobile Browser / Camera / GPS / Geolocation Fallback)  │
-  └──────────────────────────────┬──────────────────────────────┘
-                                 │
-                     HTTPS Multipart Form / REST
-                                 ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │                 React 18 + Vite Web Application             │
-  │                 (Hosted on AWS Amplify CI/CD)               │
-  │  ├── 📷 Water Depth Gauge (/analyze)                        │
-  │  ├── 🗺️ Interactive Live GIS Hazard Map (/map)              │
-  │  ├── 🧭 Dynamic Flood Bypass Route Planner (/routes)        │
-  │  ├── 👤 Citizen Portal & Clearance Request (/user/dashboard)│
-  │  └── 🛡️ Municipal Command & Triage Portal (/admin/dashboard)│
-  └──────────────────────────────┬──────────────────────────────┘
-                                 │
-                     HTTP / JSON / Session Cookies
-                                 ▼
-  ┌─────────────────────────────────────────────────────────────┐
-  │               FastAPI High-Performance Microservice         │
-  │              (AWS App Runner / Container on ECR)            │
-  │  ├── YOLOv8 Tensor Inference Engine (best.pt weights)       │
-  │  ├── Geometric Calibration & Visual HUD Annotator           │
-  │  ├── OSRM Dynamic Bypass Routing Engine                     │
-  │  ├── RBAC & Atomic Emergency Review System                  │
-  │  └── SQLite / PostgreSQL Migrations & Audit Ledger          │
-  └───┬──────────────────────────┬──────────────────────────┬───┘
-      │                          │                          │
-      ▼                          ▼                          ▼
-┌──────────────┐          ┌──────────────┐          ┌──────────────┐
-│  Amazon S3   │          │Amazon DynamoDB│         │  Amazon SNS  │
-│ Raw & HUD    │          │  Geospatial  │          │  Automated   │
-│ Annotated    │          │  Telemetry & │          │ Emergency SMS│
-│ Proof Images │          │ Incident GIS │          │   Dispatch   │
-└──────────────┘          └──────────────┘          └──────────────┘
-```
-
----
 
 ## 📂 Repository Structure
 
