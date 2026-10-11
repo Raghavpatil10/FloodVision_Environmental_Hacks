@@ -543,4 +543,13 @@ To maintain zero-trust integrity on a fresh production deployment without public
 13. Open Source Routing Machine (OSRM). https://project-osrm.org
 14. Nominatim Geocoding API. https://nominatim.org
 
+### Cloud & Infrastructure
+15. Amazon S3 Documentation. https://docs.aws.amazon.com/s3
+16. Amazon DynamoDB Documentation. https://docs.aws.amazon.com/dynamodb
+17. Amazon SNS Documentation. https://docs.aws.amazon.com/sns
+18. AWS App Runner Documentation. https://docs.aws.amazon.com/apprunner
+19. AWS Amplify Hosting Documentation. https://docs.aws.amazon.com/amplify
+20. AWS SAM Documentation. https://docs.aws.amazon.com/serverless-application-model
+21. LocalStack Documentation. https://docs.localstack.cloud
+
 
