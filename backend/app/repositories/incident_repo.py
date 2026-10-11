@@ -60,6 +60,32 @@ class IncidentRepository:
                 "status": "active",
                 "reported_at": now,
                 "last_updated_at": now
+            },
+            "demo-nagpur-1": {
+                "incident_id": "demo-nagpur-1",
+                "latitude": 21.1265,
+                "longitude": 79.0667,
+                "estimated_depth_cm": 38.5,
+                "safety_score": 18,
+                "risk_level": "critical",
+                "confidence": "0.93",
+                "annotated_image_url": "https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=600&q=80",
+                "status": "active",
+                "reported_at": now,
+                "last_updated_at": now
+            },
+            "demo-nagpur-2": {
+                "incident_id": "demo-nagpur-2",
+                "latitude": 21.1470,
+                "longitude": 79.0880,
+                "estimated_depth_cm": 14.5,
+                "safety_score": 75,
+                "risk_level": "safe",
+                "confidence": "0.88",
+                "annotated_image_url": "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=600&q=80",
+                "status": "active",
+                "reported_at": now,
+                "last_updated_at": now
             }
         }
         try:

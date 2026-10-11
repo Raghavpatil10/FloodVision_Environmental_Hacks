@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getUserLocation, searchLocations } from '../utils/geoUtils';
 import { 
   Camera, 
   UploadCloud, 
@@ -19,7 +20,9 @@ import {
   Lock,
   LogIn,
   UserCheck,
-  X
+  X,
+  Search,
+  Compass
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -35,9 +38,53 @@ export default function Analyze() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [coords, setCoords] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationLabel, setLocationLabel] = useState('');
+  const [manualLocationText, setManualLocationText] = useState('');
+  const [showLocationSearch, setShowLocationSearch] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [showSmsToast, setShowSmsToast] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Auto-acquire user location on load (via GPS or IP fallback)
+  useEffect(() => {
+    fetchAutoLocation();
+  }, []);
+
+  const fetchAutoLocation = async () => {
+    setLocating(true);
+    try {
+      const loc = await getUserLocation();
+      setCoords({ lat: loc.lat, lon: loc.lon });
+      setLocationLabel(loc.label || `${loc.city || 'Detected Area'} (${loc.lat.toFixed(4)}, ${loc.lon.toFixed(4)})`);
+    } catch (e) {
+      console.warn("Location error:", e);
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const handleManualLocationSearch = async (e) => {
+    if (e) e.preventDefault();
+    if (!manualLocationText.trim()) return;
+    setLocating(true);
+    try {
+      const results = await searchLocations(manualLocationText.trim());
+      if (results && results.length > 0) {
+        const top = results[0];
+        setCoords({ lat: top.lat, lon: top.lon });
+        setLocationLabel(`${top.name} (${top.lat.toFixed(4)}, ${top.lon.toFixed(4)})`);
+        setShowLocationSearch(false);
+        setManualLocationText('');
+      } else {
+        alert(`Could not find coordinates for "${manualLocationText}". Try adding city name.`);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLocating(false);
+    }
+  };
 
   const handleFile = (selected) => {
     if (!user) {
@@ -86,20 +133,7 @@ export default function Analyze() {
   };
 
   const requestLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCoords({
-            lat: position.coords.latitude,
-            lon: position.coords.longitude
-          });
-        },
-        (err) => {
-          console.error("Location error", err);
-          alert("Could not retrieve GPS location. You can still analyze without GPS coordinates.");
-        }
-      );
-    }
+    fetchAutoLocation();
   };
 
   const handleUpload = async (e) => {
@@ -330,35 +364,93 @@ export default function Analyze() {
 
           {/* Location & Controls Strip */}
           <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
             marginBottom: '24px',
-            padding: '12px 16px',
-            background: 'rgba(15, 23, 42, 0.5)',
-            border: '1px solid var(--border-glass)',
-            borderRadius: 'var(--radius-md)'
+            padding: '14px 18px',
+            background: '#ffffff',
+            border: '2px solid #111111',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '3px 3px 0px #111111'
           }}>
-            <button 
-              type="button" 
-              onClick={requestLocation}
-              className="btn btn-secondary"
-              style={{ padding: '8px 14px', fontSize: '0.88rem' }}
-            >
-              <MapPin size={16} color="#38bdf8" />
-              <span>Attach GPS Coordinates</span>
-            </button>
-
-            {coords ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', color: '#34d399', fontWeight: 600 }}>
-                <CheckCircle2 size={16} />
-                <span>Lat: {coords.lat.toFixed(4)}, Lon: {coords.lon.toFixed(4)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: '6px',
+                  background: coords ? '#dcfce7' : '#e0f2fe',
+                  border: '2px solid #111111',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <MapPin size={18} color="#111111" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#111111' }}>
+                    {coords ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span>📍 {locationLabel || `Lat: ${coords.lat.toFixed(4)}, Lon: ${coords.lon.toFixed(4)}`}</span>
+                        <CheckCircle2 size={15} color="#16a34a" />
+                      </span>
+                    ) : (
+                      <span>Location Pending Detection...</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    {coords ? `Exact Coordinates: ${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}` : 'Will auto-pin to your location or area'}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                GPS optional (logs to Live GIS Map)
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button" 
+                  onClick={fetchAutoLocation}
+                  disabled={locating}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                  title="Re-detect current location"
+                >
+                  <Compass size={14} className={locating ? 'animate-spin' : ''} />
+                  <span>{locating ? 'Detecting...' : 'Re-Detect GPS'}</span>
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => setShowLocationSearch(!showLocationSearch)}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.82rem' }}
+                >
+                  <Search size={14} />
+                  <span>{showLocationSearch ? 'Close' : 'Set Landmark'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Optional Manual Landmark / City Search Bar */}
+            {showLocationSearch && (
+              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    value={manualLocationText}
+                    onChange={(e) => setManualLocationText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleManualLocationSearch(); } }}
+                    placeholder="Enter landmark or street (e.g. Sitabuldi, Nagpur or Mumbai Airport)"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: '4px',
+                      border: '2px solid #111111',
+                      fontSize: '0.85rem'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleManualLocationSearch}
+                    disabled={locating || !manualLocationText.trim()}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+                  >
+                    <span>Set Location</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -535,28 +627,50 @@ export default function Analyze() {
             )}
 
             {/* Incident Persisted Banner */}
-            {result.incident_id && (
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '14px 18px',
-                borderRadius: 'var(--radius-md)',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
-                flexWrap: 'wrap',
-                gap: '10px'
-              }}>
-                <div style={{ color: '#34d399', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={18} />
-                  <span>Logged to Amazon DynamoDB (ID: {result.incident_id.slice(0, 8)}...)</span>
+            {/* Incident Persisted & Live Map Pinpoint Navigation */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '18px 22px',
+              borderRadius: 'var(--radius-lg)',
+              background: '#ffffff',
+              border: '3px solid #111111',
+              boxShadow: '6px 6px 0px #111111',
+              flexWrap: 'wrap',
+              gap: '14px',
+              marginTop: '16px'
+            }}>
+              <div>
+                <div style={{ color: '#111111', fontSize: '0.96rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={20} color="#16a34a" />
+                  <span>Telemetry Logged & Pinned to Live GIS Map</span>
                 </div>
-                <Link to="/map" className="btn btn-emerald" style={{ padding: '8px 16px', fontSize: '0.88rem' }}>
-                  <span>View on Live Map</span>
+                <div style={{ color: '#475569', fontSize: '0.82rem', marginTop: '3px' }}>
+                  {coords 
+                    ? `Exact Coordinates: Lat ${coords.lat.toFixed(5)}, Lon ${coords.lon.toFixed(5)} ${result.incident_id ? `(ID: ${result.incident_id.slice(0, 8)})` : ''}`
+                    : 'Water depth calculated. Click to locate in your area.'}
+                </div>
+              </div>
+
+              {coords ? (
+                <Link 
+                  to={`/map?lat=${coords.lat}&lon=${coords.lon}&incident_id=${result.incident_id || ''}&highlight=true`} 
+                  state={{ focusLat: coords.lat, focusLon: coords.lon, incidentId: result.incident_id }}
+                  className="btn btn-emerald" 
+                  style={{ padding: '12px 22px', fontSize: '0.92rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <MapPin size={18} />
+                  <span>Point to Exact Coordinate on Live Map</span>
+                  <ArrowRight size={16} />
+                </Link>
+              ) : (
+                <Link to="/map" className="btn btn-secondary" style={{ padding: '10px 18px', fontSize: '0.88rem' }}>
+                  <span>Open Live Map</span>
                   <ArrowRight size={14} />
                 </Link>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
