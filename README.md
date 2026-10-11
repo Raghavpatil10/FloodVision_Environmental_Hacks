@@ -515,3 +515,12 @@ To maintain zero-trust integrity on a fresh production deployment without public
 * **Hackathon:** Built with pride for **Environmental Hacks 2026** (Track 02: Heat and Water).
 * **Dataset & Weights:** YOLOv8 model fine-tuned on annotated flooded-vehicle telemetry datasets.
 * **Mapping:** OpenStreetMap & Leaflet. Routing powered by OSRM.
+
+## 📚 References
+
+### Computer Vision & Depth Estimation
+1. Jocher, G., Chaurasia, A., & Qiu, J. (2023). *Ultralytics YOLOv8*. https://github.com/ultralytics/ultralytics
+2. Redmon, J., Divvala, S., Girshick, R., & Farhadi, A. (2016). *You Only Look Once: Unified, Real-Time Object Detection*. IEEE CVPR. https://arxiv.org/abs/1506.02640
+3. Ultralytics Docs. *YOLOv8 Models & Training*. https://docs.ultralytics.com
+
+
