@@ -18,8 +18,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+raw_origins = [o.strip() for o in settings.FRONTEND_ORIGIN.split(",") if o.strip()] if settings.FRONTEND_ORIGIN else []
 frontend_origins = list(set([
-    settings.FRONTEND_ORIGIN,
+    *raw_origins,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
@@ -30,6 +31,7 @@ frontend_origins = list(set([
 app.add_middleware(
     CORSMiddleware,
     allow_origins=frontend_origins,
+    allow_origin_regex=r"^https:\/\/.*\.amplifyapp\.com$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

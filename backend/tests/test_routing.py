@@ -23,6 +23,7 @@ def test_match_incidents():
 async def test_get_routes_mocked(mocker):
     # Mock httpx.AsyncClient.get to return a dummy OSRM response
     class MockResponse:
+        status_code = 200
         def raise_for_status(self): pass
         def json(self):
             return {
@@ -35,7 +36,7 @@ async def test_get_routes_mocked(mocker):
                     {
                         "distance": 1500,
                         "duration": 400,
-                        "geometry": {"coordinates": [[10.0, 10.0], [10.2, 10.2]]}
+                        "geometry": {"coordinates": [[10.0, 10.0], [9.8, 10.0], [9.8, 10.2]]}
                     }
                 ]
             }

@@ -2,13 +2,24 @@ FROM python:3.10-slim
 
 WORKDIR /code
 
+# Install system dependencies required by OpenCV / Ultralytics / image processing
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY ./requirements.txt /code/requirements.txt
 
 RUN pip install --no-cache-dir -r /code/requirements.txt
 
-COPY ./app /code/app
+# Create data directory for user store and SQLite fallback
+RUN mkdir -p /code/data
 
-# App Runner typically uses port 80 or 8080. We use 8080 and expose it.
+COPY ./app /code/app
+COPY ./yolov8n.pt /code/yolov8n.pt
+
+# App Runner default port is 8080
 EXPOSE 8080
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
