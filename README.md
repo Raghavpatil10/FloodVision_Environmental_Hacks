@@ -235,17 +235,24 @@ cd FloodVision_Environmental_Hacks
 #### Backend `.env`
 Create `backend/.env` based on `backend/.env.example`:
 ```ini
-AWS_ACCESS_KEY_ID=mock_key
-AWS_SECRET_ACCESS_KEY=mock_secret
+# AWS Cloud Infrastructure (Leave mock values for offline LocalStack)
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
 AWS_REGION=us-east-1
-S3_BUCKET_NAME=floodvision-images
+S3_BUCKET_NAME=floodvision-images-2026
 DYNAMODB_TABLE_NAME=floodvision_incidents
-SNS_TOPIC_ARN=
+SNS_TOPIC_ARN=arn:aws:sns:us-east-1:149160851728:floodvision_critical_alerts
+
+# Frontend & Cross-Origin Configuration
 FRONTEND_ORIGIN=http://localhost:5173
+
+# Navigation & Geocoding Routing Engine
 ROUTING_PROVIDER=osrm
 ROUTING_BASE_URL=http://router.project-osrm.org
-MAX_IMAGE_SIZE_MB=5
+
+# Waterlogging Hazard Thresholds
 CRITICAL_DEPTH_CM=30.0
+MAX_IMAGE_SIZE_MB=5
 TRAFFIC_WARDEN_PHONE_NUMBER=+15550192834
 
 # Authentication & Session Security
@@ -255,18 +262,21 @@ COOKIE_SECURE=false
 COOKIE_SAMESITE=lax
 USERS_DB_PATH=data/users.db
 
-# Initial Admin Bootstrap Configuration
+# Default Bootstrap Admin Account
 ADMIN_INITIAL_EMAIL=admin@floodvision.org
-```
+ADMIN_INITIAL_PASSWORD=FloodVisionAdmin2026!
+ADMIN_INITIAL_NAME="Emergency Response Admin"
 
 > **Note on AWS Credentials:** If real AWS credentials are not configured, FloodVision automatically activates its built-in graceful local fallbacks (in-memory incident store, inline Base64 image URIs, and console SMS broadcast logging).
 
 #### Frontend `.env`
 Create `frontend/.env` based on `frontend/.env.example`:
 ```ini
+# For local development:
 VITE_API_BASE_URL=http://localhost:8000
-```
-*(If running backend on an alternate port such as 8001, update this to `http://localhost:8001`).*
+
+# For live production:
+# VITE_API_BASE_URL=http://43.204.111.44:8080
 
 ---
 
