@@ -22,7 +22,9 @@ import {
   MessageSquare
 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from '../utils/apiConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();

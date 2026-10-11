@@ -21,8 +21,9 @@ import {
   Navigation,
   Compass
 } from 'lucide-react';
+import { getApiBaseUrl } from '../utils/apiConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = getApiBaseUrl();
 
 // Fix leaflet default icon issue in React
 delete L.Icon.Default.prototype._getIconUrl;
@@ -257,16 +258,18 @@ export default function MapDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
               <div style={{
                 width: 32, height: 32, borderRadius: '8px', 
-                background: '#FFCE32', border: '2px solid #111111', display: 'flex', 
+                background: '#dcfce7', border: '2px solid #111111',
+                boxShadow: '2px 2px 0px #111111',
+                display: 'flex', 
                 alignItems: 'center', justifyContent: 'center'
               }}>
-                <Radio size={18} color="#111111" />
+                <Radio size={18} color="#16a34a" />
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#111111' }}>
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 900, color: '#111111' }}>
                 Live GIS Flood Hazard Telemetry
               </h2>
             </div>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.86rem' }}>
+            <p style={{ margin: 0, color: '#475569', fontSize: '0.86rem', fontWeight: 500 }}>
               Real-time crowdsourced flood depths with automated road-closure risk stratification
             </p>
           </div>

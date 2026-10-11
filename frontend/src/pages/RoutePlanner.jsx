@@ -23,8 +23,9 @@ import {
   ShieldAlert,
   LocateFixed
 } from 'lucide-react';
+import { fetchWithFallback, getApiBaseUrl } from '../utils/apiConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = getApiBaseUrl();
 
 // Fix Leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -127,33 +128,41 @@ const PRESETS = [
     name: 'Sitabuldi → Civil Lines (Nagpur Flood Reroute Test)',
     desc: 'Simulates path encountering waterlogged corridor and auto-rerouting around it',
     origin: 'Sitabuldi, Nagpur',
-    destination: 'Civil Lines, Nagpur'
+    destination: 'Civil Lines, Nagpur',
+    originCoords: { lat: 21.1458, lon: 79.0882 },
+    destCoords: { lat: 21.1610, lon: 79.0725 }
   },
   {
     name: 'Dharampeth → Nagpur Airport',
     desc: 'West to South arterial route in Nagpur',
     origin: 'Dharampeth, Nagpur',
-    destination: 'Dr. Babasaheb Ambedkar International Airport, Nagpur'
+    destination: 'Dr. Babasaheb Ambedkar International Airport, Nagpur',
+    originCoords: { lat: 21.1428, lon: 79.0620 },
+    destCoords: { lat: 21.0922, lon: 79.0472 }
   },
   {
     name: 'Bandra West → BKC (Mumbai)',
     desc: 'Low-lying flood bypass corridor in Mumbai',
     origin: 'Bandra West, Mumbai',
-    destination: 'Bandra Kurla Complex, Mumbai'
+    destination: 'Bandra Kurla Complex, Mumbai',
+    originCoords: { lat: 19.0596, lon: 72.8295 },
+    destCoords: { lat: 19.0657, lon: 72.8687 }
   },
   {
     name: 'Dadar → Lower Parel (Mumbai)',
     desc: 'Monsoon waterlogging underpass bypass',
     origin: 'Dadar, Mumbai',
-    destination: 'Lower Parel, Mumbai'
+    destination: 'Lower Parel, Mumbai',
+    originCoords: { lat: 19.0178, lon: 72.8478 },
+    destCoords: { lat: 18.9953, lon: 72.8302 }
   }
 ];
 
 export default function RoutePlanner() {
-  const [origin, setOrigin] = useState('Sitabuldi, Nagpur');
-  const [destination, setDestination] = useState('Civil Lines, Nagpur');
-  const [resolvedOriginCoords, setResolvedOriginCoords] = useState(null);
-  const [resolvedDestCoords, setResolvedDestCoords] = useState(null);
+  const [origin, setOrigin] = useState(PRESETS[0].origin);
+  const [destination, setDestination] = useState(PRESETS[0].destination);
+  const [resolvedOriginCoords, setResolvedOriginCoords] = useState(PRESETS[0].originCoords);
+  const [resolvedDestCoords, setResolvedDestCoords] = useState(PRESETS[0].destCoords);
 
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -266,11 +275,14 @@ export default function RoutePlanner() {
       }
 
       // 3. Plan route with dynamic hazard avoidance
-      const res = await axios.post(`${API_BASE_URL}/api/routes/plan`, {
-        origin: oCoords,
-        destination: dCoords,
-        origin_name: origin,
-        destination_name: destination
+      const res = await fetchWithFallback('/api/routes/plan', {
+        method: 'POST',
+        data: {
+          origin: oCoords,
+          destination: dCoords,
+          origin_name: origin,
+          destination_name: destination
+        }
       });
 
       setRouteData(res.data);
@@ -298,8 +310,8 @@ export default function RoutePlanner() {
   const handleApplyPreset = (p) => {
     setOrigin(p.origin);
     setDestination(p.destination);
-    setResolvedOriginCoords(null);
-    setResolvedDestCoords(null);
+    setResolvedOriginCoords(p.originCoords || null);
+    setResolvedDestCoords(p.destCoords || null);
     setError(null);
     setRouteData(null);
   };
@@ -409,16 +421,17 @@ export default function RoutePlanner() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
               <div style={{
                 width: 36, height: 36, borderRadius: '8px', 
-                background: '#FFCE32', border: '2px solid #111111', display: 'flex', 
+                background: '#f3e8ff', border: '2px solid #111111',
+                boxShadow: '2px 2px 0px #111111', display: 'flex', 
                 alignItems: 'center', justifyContent: 'center'
               }}>
-                <Compass size={20} color="#111111" />
+                <Compass size={20} color="#9333ea" />
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, color: '#111111' }}>
+              <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 900, color: '#111111' }}>
                 Safe Route Planner
               </h2>
             </div>
-            <p style={{ margin: 0, color: '#475569', fontSize: '0.86rem', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, color: '#475569', fontSize: '0.86rem', lineHeight: 1.5, fontWeight: 500 }}>
               Enter start and end location names. FloodVision monitors active waterlogging reports along the path and dynamically calculates safe detours.
             </p>
           </div>
@@ -743,19 +756,19 @@ export default function RoutePlanner() {
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center', marginBottom: '14px' }}>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Distance</div>
+                    <div style={{ fontSize: '0.72rem', color: '#111111', fontWeight: 800, textTransform: 'uppercase' }}>Distance</div>
                     <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: '#0284c7' }}>
                       {(routeData.recommended_route.total_distance_m / 1000).toFixed(2)} <span style={{ fontSize: '0.8rem' }}>km</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Est. Time</div>
+                    <div style={{ fontSize: '0.72rem', color: '#111111', fontWeight: 800, textTransform: 'uppercase' }}>Est. Time</div>
                     <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: '#111111' }}>
                       {Math.max(1, Math.round(routeData.recommended_route.total_duration_s / 60))} <span style={{ fontSize: '0.8rem' }}>min</span>
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Safety Index</div>
+                    <div style={{ fontSize: '0.72rem', color: '#111111', fontWeight: 800, textTransform: 'uppercase' }}>Safety Index</div>
                     <div style={{ fontSize: '1.3rem', fontWeight: 900, fontFamily: 'var(--font-mono)', color: polylineColor }}>
                       {routeData.recommended_route.overall_safety_score} <span style={{ fontSize: '0.8rem' }}>/100</span>
                     </div>
@@ -765,9 +778,10 @@ export default function RoutePlanner() {
                 <div style={{ 
                   fontSize: '0.88rem', 
                   color: '#111111', 
-                  borderTop: '1px solid #e2e8f0', 
+                  borderTop: '2px solid rgba(0, 0, 0, 0.15)',
                   paddingTop: '10px',
-                  lineHeight: 1.45
+                  lineHeight: 1.45,
+                  fontWeight: 600
                 }}>
                   <strong style={{ color: polylineColor }}>Navigation Note: </strong>
                   {routeData.recommended_route.recommendation_reason || "Direct route clear of recorded waterlogging."}

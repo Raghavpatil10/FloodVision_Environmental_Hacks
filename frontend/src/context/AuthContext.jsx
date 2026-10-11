@@ -4,7 +4,9 @@ import axios from 'axios';
 // Ensure all cross-site requests send and receive HTTP-only session cookies
 axios.defaults.withCredentials = true;
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { getApiBaseUrl } from '../utils/apiConfig';
+
+const API_BASE_URL = getApiBaseUrl();
 
 const AuthContext = createContext(null);
 
