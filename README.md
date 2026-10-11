@@ -533,4 +533,14 @@ To maintain zero-trust integrity on a fresh production deployment without public
 7. itsdangerous (signed, timed sessions). https://itsdangerous.palletsprojects.com
 8. Pytest Documentation. https://docs.pytest.org
 
+### Frontend
+9. React Documentation. https://react.dev
+10. Vite Documentation. https://vitejs.dev
+11. Leaflet, an open-source JavaScript library for interactive maps. https://leafletjs.com
+
+### Mapping & Routing
+12. OpenStreetMap Contributors. https://www.openstreetmap.org
+13. Open Source Routing Machine (OSRM). https://project-osrm.org
+14. Nominatim Geocoding API. https://nominatim.org
+
 
