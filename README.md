@@ -523,4 +523,14 @@ To maintain zero-trust integrity on a fresh production deployment without public
 2. Redmon, J., Divvala, S., Girshick, R., & Farhadi, A. (2016). *You Only Look Once: Unified, Real-Time Object Detection*. IEEE CVPR. https://arxiv.org/abs/1506.02640
 3. Ultralytics Docs. *YOLOv8 Models & Training*. https://docs.ultralytics.com
 
+### Flood Safety Standards
+4. U.S. National Weather Service. *Turn Around, Don't Drown!* https://www.weather.gov/safety/flood-turn-around-dont-drown
+   *(Basis for the 30 cm / 12 in vehicle-hazard threshold.)*
+
+### Backend & Frameworks
+5. FastAPI Documentation. https://fastapi.tiangolo.com
+6. Pydantic Documentation. https://docs.pydantic.dev
+7. itsdangerous (signed, timed sessions). https://itsdangerous.palletsprojects.com
+8. Pytest Documentation. https://docs.pytest.org
+
 
