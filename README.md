@@ -266,6 +266,7 @@ USERS_DB_PATH=data/users.db
 ADMIN_INITIAL_EMAIL=admin@floodvision.org
 ADMIN_INITIAL_PASSWORD=FloodVisionAdmin2026!
 ADMIN_INITIAL_NAME="Emergency Response Admin"
+```
 
 > **Note on AWS Credentials:** If real AWS credentials are not configured, FloodVision automatically activates its built-in graceful local fallbacks (in-memory incident store, inline Base64 image URIs, and console SMS broadcast logging).
 
@@ -277,6 +278,7 @@ VITE_API_BASE_URL=http://localhost:8000
 
 # For live production:
 # VITE_API_BASE_URL=http://43.204.111.44:8080
+```
 
 ---
 
