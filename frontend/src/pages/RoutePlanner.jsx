@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -136,8 +137,29 @@ const PRESETS = [
 ];
 
 export default function RoutePlanner() {
-  const [origin, setOrigin] = useState('21.1298° N, 79.0752° E');
-  const [destination, setDestination] = useState('21.1390° N, 79.0631° E');
+  const [searchParams] = useSearchParams();
+  const qOriginLat = searchParams.get('originLat');
+  const qOriginLon = searchParams.get('originLon');
+  const qDestLat = searchParams.get('destLat');
+  const qDestLon = searchParams.get('destLon');
+  const qHazardLat = searchParams.get('hazardLat');
+  const qHazardLon = searchParams.get('hazardLon');
+
+  const [origin, setOrigin] = useState(() => {
+    if (qOriginLat && qOriginLon) return `${qOriginLat}, ${qOriginLon}`;
+    return '21.1298° N, 79.0752° E';
+  });
+
+  const [destination, setDestination] = useState(() => {
+    if (qDestLat && qDestLon) {
+      // Offset slightly to demonstrate bypass routing around the hazard
+      const lat = parseFloat(qDestLat) + 0.015;
+      const lon = parseFloat(qDestLon) + 0.015;
+      return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    }
+    return '21.1390° N, 79.0631° E';
+  });
+
   const [routeData, setRouteData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -148,6 +170,31 @@ export default function RoutePlanner() {
   const [trafficMode, setTrafficMode] = useState('live'); // 'live', 'rush_hour', 'free_flow'
   const [selectedRouteIndex, setSelectedRouteIndex] = useState(0); // 0 = recommended, 1..n = alternatives
   const [mapLayerMode, setMapLayerMode] = useState('traffic'); // 'traffic' or 'safety'
+
+  // Auto-acquire current GPS location if none passed
+  useEffect(() => {
+    if (!qOriginLat && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          // Keep Nagpur default unless user clicks "Use My Location", or update
+        },
+        () => {}
+      );
+    }
+  }, []);
+
+  const handleUseCurrentLocation = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          setOrigin(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+        },
+        err => {
+          alert("Could not get GPS location. Please check browser permissions.");
+        }
+      );
+    }
+  };
 
   const origCoords = parseCoordinates(origin);
   const destCoords = parseCoordinates(destination);
@@ -312,10 +359,29 @@ export default function RoutePlanner() {
           {/* Form */}
           <form onSubmit={handlePlanRoute}>
             <div className="form-group">
-              <label className="form-label" style={{ color: '#94a3b8' }}>
-                <MapPin size={14} color="#10b981" />
-                <span>Origin (Lat, Lon):</span>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label className="form-label" style={{ color: '#94a3b8', margin: 0 }}>
+                  <MapPin size={14} color="#10b981" />
+                  <span>Origin (Lat, Lon):</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.15)',
+                    border: '1px solid #38bdf8',
+                    color: '#38bdf8',
+                    borderRadius: '4px',
+                    padding: '2px 8px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  title="Auto-fill with current device GPS"
+                >
+                  📍 Use Current GPS
+                </button>
+              </div>
               <input
                 className="form-input font-mono"
                 value={origin}

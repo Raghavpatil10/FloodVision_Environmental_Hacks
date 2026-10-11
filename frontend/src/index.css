@@ -821,4 +821,35 @@ h1, h2, h3, h4, h5, h6, p, span, div {
     transform: scale(1.6);
     opacity: 0;
   }
+}
+
+/* User Live GPS Location Marker */
+.user-marker-container {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-marker-core {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background-color: #0284c7;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(2, 132, 199, 0.9);
+  z-index: 2;
+}
+
+.user-marker-pulse {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(2, 132, 199, 0.4);
+  border-radius: 50%;
+  animation: beacon-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  z-index: 1;
 }

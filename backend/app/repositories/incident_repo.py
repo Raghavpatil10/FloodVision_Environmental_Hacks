@@ -107,26 +107,63 @@ class IncidentRepository:
         
         return self._local_incidents.get(incident_id)
 
-    def list_recent_incidents(self, max_age_hours: int = 24) -> List[Dict[str, Any]]:
+    def list_recent_incidents(
+        self,
+        max_age_hours: int = 24,
+        status: Optional[str] = "active",
+        include_resolved: bool = False
+    ) -> List[Dict[str, Any]]:
         cutoff = (datetime.utcnow() - timedelta(hours=max_age_hours)).isoformat()
+        target_status = None if include_resolved else status
         
         if self.table:
             try:
-                response = self.table.scan(
-                    FilterExpression="reported_at >= :cutoff AND #st = :active",
-                    ExpressionAttributeNames={"#st": "status"},
-                    ExpressionAttributeValues={":cutoff": cutoff, ":active": "active"}
-                )
+                if target_status:
+                    response = self.table.scan(
+                        FilterExpression="reported_at >= :cutoff AND #st = :status_val",
+                        ExpressionAttributeNames={"#st": "status"},
+                        ExpressionAttributeValues={":cutoff": cutoff, ":status_val": target_status}
+                    )
+                else:
+                    response = self.table.scan(
+                        FilterExpression="reported_at >= :cutoff",
+                        ExpressionAttributeValues={":cutoff": cutoff}
+                    )
                 items = response.get("Items")
                 if items is not None:
                     return _decimals_to_floats(items)
             except (ClientError, BotoCoreError, Exception) as e:
                 logger.warning(f"Failed to scan DynamoDB, falling back to local memory: {e}")
         
-        return [
-            item for item in self._local_incidents.values()
-            if item.get("status") == "active" and item.get("reported_at", "") >= cutoff
-        ]
+        results = []
+        for item in self._local_incidents.values():
+            if item.get("reported_at", "") < cutoff:
+                continue
+            if target_status and item.get("status") != target_status:
+                continue
+            results.append(item)
+        return results
+
+    def list_all_incidents(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        if self.table:
+            try:
+                if status:
+                    response = self.table.scan(
+                        FilterExpression="#st = :status_val",
+                        ExpressionAttributeNames={"#st": "status"},
+                        ExpressionAttributeValues={":status_val": status}
+                    )
+                else:
+                    response = self.table.scan()
+                items = response.get("Items")
+                if items is not None:
+                    return _decimals_to_floats(items)
+            except (ClientError, BotoCoreError, Exception) as e:
+                logger.warning(f"Failed to scan DynamoDB: {e}")
+
+        if status:
+            return [item for item in self._local_incidents.values() if item.get("status") == status]
+        return list(self._local_incidents.values())
 
     def update_status(self, incident_id: str, new_status: str) -> bool:
         now = datetime.utcnow().isoformat()

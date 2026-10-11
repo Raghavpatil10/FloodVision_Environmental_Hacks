@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -37,14 +37,13 @@ export default function Analyze() {
   const [coords, setCoords] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [showSmsToast, setShowSmsToast] = useState(false);
-  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  useEffect(() => {
+    requestLocation(false);
+  }, []);
 
   const handleFile = (selected) => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (selected && (selected.type === 'image/jpeg' || selected.type === 'image/png' || selected.type === 'image/jpg')) {
+    if (selected && (selected.type === 'image/jpeg' || selected.type === 'image/png' || selected.type === 'image/jpg' || selected.type.startsWith('image/'))) {
       setFile(selected);
       setPreviewUrl(URL.createObjectURL(selected));
       setResult(null);
@@ -58,25 +57,17 @@ export default function Analyze() {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleDropzoneClick = () => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
     const input = document.getElementById('file-upload-input');
     if (input) input.click();
   };
 
-  const requestLocation = () => {
+  const requestLocation = (isManual = false) => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -86,19 +77,18 @@ export default function Analyze() {
           });
         },
         (err) => {
-          console.error("Location error", err);
-          alert("Could not retrieve GPS location. You can still analyze without GPS coordinates.");
-        }
+          console.warn("Location error", err);
+          if (isManual) {
+            alert("Could not retrieve GPS location. You can still analyze without GPS coordinates.");
+          }
+        },
+        { enableHighAccuracy: true, timeout: 6000 }
       );
     }
   };
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
     if (!file) return;
 
     setLoading(true);
@@ -185,14 +175,14 @@ export default function Analyze() {
                 justifyContent: 'center',
                 flexShrink: 0
               }}>
-                <Lock size={20} color="#0284c7" />
+                <Radio size={20} color="#0284c7" />
               </div>
               <div>
                 <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.94rem' }}>
-                  Citizen Sign-In Required to Upload Imagery
+                  Citizen & Community Crowdsource Mode
                 </div>
                 <div style={{ color: '#475569', fontSize: '0.84rem' }}>
-                  Please sign in or create an account to submit street photos for verified depth telemetry.
+                  Instant CV depth analysis active. Upload road photos directly or sign in optionally to link reports to your municipal account.
                 </div>
               </div>
             </div>
@@ -204,7 +194,7 @@ export default function Analyze() {
                 style={{ padding: '7px 16px', fontSize: '0.85rem' }}
               >
                 <LogIn size={14} />
-                <span>Sign In to Upload</span>
+                <span>Sign In (Optional)</span>
               </Link>
               <Link
                 to="/register"
@@ -231,7 +221,7 @@ export default function Analyze() {
             boxShadow: '2px 2px 0px #16a34a'
           }}>
             <UserCheck size={18} color="#16a34a" />
-            <span>Authenticated Reporter: <strong>{user.name}</strong> ({user.role.toUpperCase()}) • Ready to upload and gauge flood depth</span>
+            <span>Authenticated Reporter: <strong>{user.name}</strong> ({user.role?.toUpperCase() || 'CITIZEN'}) • Ready to upload and gauge flood depth</span>
           </div>
         )}
 
@@ -292,7 +282,7 @@ export default function Analyze() {
           }}>
             <button
               type="button"
-              onClick={requestLocation}
+              onClick={() => requestLocation(true)}
               className="btn btn-secondary"
               style={{ padding: '8px 14px', fontSize: '0.88rem' }}
             >
@@ -489,151 +479,48 @@ export default function Analyze() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '14px 18px',
+                padding: '16px 20px',
                 borderRadius: 'var(--radius-md)',
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid rgba(16, 185, 129, 0.3)',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '2px solid #10b981',
                 flexWrap: 'wrap',
-                gap: '10px'
+                gap: '12px',
+                boxShadow: '4px 4px 0px #111111'
               }}>
-                <div style={{ color: '#34d399', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={18} />
-                  <span>Logged to Amazon DynamoDB (ID: {result.incident_id.slice(0, 8)}...)</span>
+                <div>
+                  <div style={{ color: '#047857', fontSize: '0.95rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={18} color="#10b981" />
+                    <span>Broadcasted to Live Map & Emergency Routing Engine</span>
+                  </div>
+                  <div style={{ color: '#065f46', fontSize: '0.82rem', marginTop: '2px' }}>
+                    Incident ID: {result.incident_id.slice(0, 8)}... | Coordinates: {result.latitude || coords?.lat || 19.0760}, {result.longitude || coords?.lon || 72.8777}
+                  </div>
                 </div>
-                <Link to="/map" className="btn btn-emerald" style={{ padding: '8px 16px', fontSize: '0.88rem' }}>
-                  <span>View on Live Map</span>
-                  <ArrowRight size={14} />
-                </Link>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <Link
+                    to={`/map?focus=${result.incident_id}&lat=${result.latitude || coords?.lat || 19.0760}&lon=${result.longitude || coords?.lon || 72.8777}`}
+                    className="btn btn-emerald"
+                    style={{ padding: '8px 16px', fontSize: '0.88rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span>View on Live Map</span>
+                    <ArrowRight size={14} />
+                  </Link>
+
+                  <Link
+                    to={`/routes?destLat=${result.latitude || coords?.lat || 19.0760}&destLon=${result.longitude || coords?.lon || 72.8777}&hazardId=${result.incident_id}`}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '0.88rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <span>Avoid in Route Planner</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </div>
               </div>
             )}
-          </div>
-        )}
-
-        {/* Authentication Modal Dialog */}
-        {showAuthModal && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.78)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '16px'
-          }}>
-            <div style={{
-              background: '#ffffff',
-              border: '3px solid #111111',
-              borderRadius: '12px',
-              padding: '28px',
-              maxWidth: '440px',
-              width: '100%',
-              boxShadow: '8px 8px 0px #111111',
-              position: 'relative',
-              textAlign: 'center'
-            }}>
-              <button
-                type="button"
-                onClick={() => setShowAuthModal(false)}
-                style={{
-                  position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#64748b'
-                }}
-              >
-                <X size={20} />
-              </button>
-
-              <div style={{
-                width: 58,
-                height: 58,
-                borderRadius: '50%',
-                background: '#eff6ff',
-                border: '2px solid #0284c7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px auto',
-                boxShadow: '2px 2px 0px #0284c7'
-              }}>
-                <Lock size={28} color="#0284c7" />
-              </div>
-
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', margin: '0 0 8px 0' }}>
-                Sign In Required to Upload
-              </h3>
-
-              <p style={{ color: '#475569', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: '22px' }}>
-                To verify waterlogging incident submissions and maintain accurate telemetry for municipal emergency teams, please sign in or create an account.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <Link
-                  to="/login"
-                  state={{ from: location }}
-                  className="btn btn-primary"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    fontSize: '0.95rem',
-                    fontWeight: 800,
-                    background: '#FFCE32',
-                    color: '#111111',
-                    border: '2px solid #111111',
-                    justifyContent: 'center',
-                    boxShadow: '3px 3px 0px #111111',
-                    textDecoration: 'none'
-                  }}
-                >
-                  <LogIn size={16} />
-                  <span>Sign In with Existing Account</span>
-                </Link>
-
-                <Link
-                  to="/register"
-                  state={{ from: location }}
-                  className="btn btn-secondary"
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    fontSize: '0.9rem',
-                    fontWeight: 800,
-                    justifyContent: 'center',
-                    textDecoration: 'none'
-                  }}
-                >
-                  <span>Create New Citizen Account</span>
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => setShowAuthModal(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#64748b',
-                    padding: '8px',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    marginTop: '4px'
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
+
