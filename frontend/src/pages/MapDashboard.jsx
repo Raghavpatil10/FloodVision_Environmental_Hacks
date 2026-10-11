@@ -100,6 +100,7 @@ export default function MapDashboard() {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tileMode, setTileMode] = useState('dark'); // 'dark' or 'street'
+  const [showMobileLegend, setShowMobileLegend] = useState(false);
 
   useEffect(() => {
     fetchIncidents();
@@ -138,10 +139,10 @@ export default function MapDashboard() {
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
       {/* Header Bar */}
-      <div className="glass-card" style={{ marginBottom: '20px', padding: '18px 24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="glass-card" style={{ marginBottom: '14px', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
               <div style={{
                 width: 32, height: 32, borderRadius: '8px', 
                 background: 'rgba(16, 185, 129, 0.15)', display: 'flex', 
@@ -149,35 +150,35 @@ export default function MapDashboard() {
               }}>
                 <Radio size={18} color="#34d399" />
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 800, color: '#f8fafc' }}>
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>
                 Live GIS Flood Hazard Telemetry
               </h2>
             </div>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.84rem' }}>
               Real-time crowdsourced flood depths with automated road-closure risk stratification
             </p>
           </div>
 
-          {/* Quick telemetry stats pill strip */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div className="map-stat-pill" style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid var(--border-glass)', color: '#f8fafc' }}>
+          {/* Quick telemetry stats pill strip - Horizontally scrollable on mobile */}
+          <div className="presets-scroll-strip" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="map-stat-pill" style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid var(--border-glass)', color: '#f8fafc', whiteSpace: 'nowrap' }}>
               <span>Total:</span>
               <strong style={{ color: '#38bdf8' }}>{totalCount}</strong>
             </div>
 
-            <div className="map-stat-pill" style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.35)', color: '#f87171' }}>
+            <div className="map-stat-pill" style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.35)', color: '#f87171', whiteSpace: 'nowrap' }}>
               <ShieldAlert size={14} />
               <span>Critical (30+cm):</span>
               <strong>{criticalCount}</strong>
             </div>
 
-            <div className="map-stat-pill" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#fbbf24' }}>
+            <div className="map-stat-pill" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.35)', color: '#fbbf24', whiteSpace: 'nowrap' }}>
               <AlertTriangle size={14} />
               <span>Caution:</span>
               <strong>{cautionCount}</strong>
             </div>
 
-            <div className="map-stat-pill" style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)', color: '#34d399' }}>
+            <div className="map-stat-pill" style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.35)', color: '#34d399', whiteSpace: 'nowrap' }}>
               <ShieldCheck size={14} />
               <span>Safe:</span>
               <strong>{safeCount}</strong>
@@ -187,11 +188,11 @@ export default function MapDashboard() {
               onClick={fetchIncidents} 
               disabled={loading}
               className="btn btn-secondary"
-              style={{ padding: '7px 14px', fontSize: '0.84rem' }}
+              style={{ padding: '6px 12px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
               title="Refresh telemetry"
             >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
-              <span>{loading ? 'Refreshing...' : 'Refresh'}</span>
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} style={loading ? { animation: 'spin 1s linear infinite' } : {}} />
+              <span>{loading ? '...' : 'Refresh'}</span>
             </button>
           </div>
         </div>
@@ -200,82 +201,137 @@ export default function MapDashboard() {
       {/* Main Map Container */}
       <div style={{ 
         position: 'relative', 
-        height: '75vh', 
+        height: 'calc(100vh - 240px)',
+        minHeight: '440px',
         borderRadius: 'var(--radius-lg)', 
         overflow: 'hidden',
-        border: '1px solid var(--border-glass)',
+        border: '2px solid #111111',
         boxShadow: 'var(--shadow-md)'
       }}>
-        {/* Floating Telemetry Feed Status (Top Left) */}
-        <div className="map-overlay-panel" style={{ top: 16, left: 16, maxWidth: '280px' }}>
+        {/* Mobile floating toggle button */}
+        <div className="mobile-map-controls" style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 1000,
+          gap: '8px'
+        }}>
+          <button
+            onClick={() => setShowMobileLegend(!showMobileLegend)}
+            className="chip-btn"
+            style={{
+              background: showMobileLegend ? '#FFCE32' : '#ffffff',
+              color: '#111111',
+              border: '2px solid #111111',
+              boxShadow: '2px 2px 0px #111111',
+              padding: '6px 12px',
+              fontSize: '0.78rem',
+              fontWeight: 800
+            }}
+          >
+            <Layers size={13} />
+            <span>{showMobileLegend ? 'Hide Legend' : 'Legend & Feed'}</span>
+          </button>
+
+          <button
+            onClick={() => setTileMode(tileMode === 'dark' ? 'street' : 'dark')}
+            className="chip-btn"
+            style={{
+              background: '#ffffff',
+              color: '#111111',
+              border: '2px solid #111111',
+              boxShadow: '2px 2px 0px #111111',
+              padding: '6px 10px',
+              fontSize: '0.78rem',
+              fontWeight: 800
+            }}
+            title="Toggle Map Style"
+          >
+            <Eye size={12} />
+            <span>{tileMode === 'dark' ? 'Dark' : 'Street'}</span>
+          </button>
+        </div>
+
+        {/* Floating Telemetry Feed Status (Desktop always, Mobile on toggle) */}
+        <div 
+          className={`map-overlay-panel map-feed-overlay ${showMobileLegend ? 'mobile-visible' : ''}`} 
+          style={{ 
+            top: 16, 
+            left: 16, 
+            maxWidth: '280px'
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span className="status-pulse-dot"></span>
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#38bdf8' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#0284c7' }}>
               GIS Command Feed
             </span>
           </div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: '0.76rem', color: '#64748b' }}>
             {lastUpdated ? `Sync: ${lastUpdated}` : 'Connecting...'}
           </div>
           {error && (
-            <div style={{ marginTop: '8px', color: '#f87171', fontSize: '0.78rem' }}>
+            <div style={{ marginTop: '8px', color: '#b91c1c', fontSize: '0.78rem' }}>
               {error}
             </div>
           )}
         </div>
 
-        {/* Floating Hazard Legend & Map Style Toggle (Top Right) */}
-        <div className="map-overlay-panel" style={{ top: 16, right: 16, width: '250px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Layers size={15} color="#38bdf8" />
-              <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#f8fafc' }}>
-                Depth Legend
-              </h4>
-            </div>
-
-            {/* Tile Toggle */}
-            <button
-              onClick={() => setTileMode(tileMode === 'dark' ? 'street' : 'dark')}
-              className="chip-btn"
-              style={{ padding: '2px 8px', fontSize: '0.72rem' }}
-              title="Toggle Map Style"
-            >
-              <Eye size={11} />
-              <span>{tileMode === 'dark' ? 'Dark GIS' : 'Street'}</span>
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 10, height: 10, background: '#10b981', borderRadius: '50%', boxShadow: '0 0 6px #10b981' }}></div>
-                <span style={{ color: '#f8fafc' }}>Safe Clearance</span>
+        {/* Floating Hazard Legend (Desktop always, Mobile on toggle) */}
+        <div 
+          className={`map-overlay-panel map-legend-overlay ${showMobileLegend ? 'mobile-visible' : ''}`} 
+          style={{ 
+            top: 16, 
+            right: 16, 
+            width: '260px',
+            maxWidth: 'calc(100vw - 32px)'
+          }}
+        >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Layers size={15} color="#0284c7" />
+                <h4 style={{ margin: 0, fontSize: '0.86rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#0f172a' }}>
+                  Depth Legend
+                </h4>
               </div>
-              <span style={{ fontFamily: 'var(--font-mono)', color: '#34d399', fontSize: '0.76rem', fontWeight: 600 }}>0 - 15 cm</span>
+              <button
+                onClick={() => setShowMobileLegend(false)}
+                style={{ background: 'none', border: 'none', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}
+              >
+                ✕ Close
+              </button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 10, height: 10, background: '#f59e0b', borderRadius: '50%', boxShadow: '0 0 6px #f59e0b' }}></div>
-                <span style={{ color: '#f8fafc' }}>Caution Puddle</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.82rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 10, height: 10, background: '#10b981', borderRadius: '50%' }}></div>
+                  <span style={{ color: '#0f172a', fontWeight: 700 }}>Safe Clearance</span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#15803d', fontSize: '0.76rem', fontWeight: 700 }}>0 - 15 cm</span>
               </div>
-              <span style={{ fontFamily: 'var(--font-mono)', color: '#fbbf24', fontSize: '0.76rem', fontWeight: 600 }}>16 - 29 cm</span>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 10, height: 10, background: '#f59e0b', borderRadius: '50%' }}></div>
+                  <span style={{ color: '#0f172a', fontWeight: 700 }}>Caution Puddle</span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#b45309', fontSize: '0.76rem', fontWeight: 700 }}>16 - 29 cm</span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: 10, height: 10, background: '#ef4444', borderRadius: '50%' }}></div>
+                  <span style={{ color: '#0f172a', fontWeight: 700 }}>Stall Risk (Danger)</span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', color: '#b91c1c', fontSize: '0.76rem', fontWeight: 800 }}>30+ cm</span>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: 10, height: 10, background: '#ef4444', borderRadius: '50%', boxShadow: '0 0 6px #ef4444' }}></div>
-                <span style={{ color: '#f8fafc' }}>Stall Risk (Danger)</span>
-              </div>
-              <span style={{ fontFamily: 'var(--font-mono)', color: '#f87171', fontSize: '0.76rem', fontWeight: 700 }}>30+ cm</span>
+            <div style={{ marginTop: '10px', paddingTop: '6px', borderTop: '1px dashed #cbd5e1', fontSize: '0.72rem', color: '#64748b' }}>
+              Baseline: 65cm car tire diameter
             </div>
           </div>
-
-          <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px solid var(--border-glass)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-            Baseline: 65cm car tire diameter
-          </div>
-        </div>
 
         {/* Leaflet Map with 100% Free OpenStreetMap Tiles (No API key required) */}
         <MapContainer 

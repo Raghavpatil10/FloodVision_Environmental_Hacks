@@ -147,6 +147,68 @@ export default function Login() {
           </p>
         </div>
 
+        {/* Demo Quick-Fill Accounts */}
+        <div style={{
+          background: '#f8fafc',
+          border: '2px dashed #94a3b8',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '0.78rem', fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.04em' }}>
+              Quick-Fill Demo Credentials
+            </span>
+            <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Click to auto-fill</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('admin@floodvision.org');
+                setPassword('FloodVisionAdmin2026!');
+                setError(null);
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                padding: '8px 10px',
+                background: '#eff6ff',
+                border: '1.5px solid #3b82f6',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1d4ed8' }}>🛡️ Admin</span>
+              <span style={{ fontSize: '0.72rem', color: '#475569', fontFamily: 'monospace' }}>admin@floodvision.org</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('citizen@floodvision.org');
+                setPassword('Citizen123!');
+                setError(null);
+              }}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                padding: '8px 10px',
+                background: '#f0fdf4',
+                border: '1.5px solid #22c55e',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#15803d' }}>👤 Citizen</span>
+              <span style={{ fontSize: '0.72rem', color: '#475569', fontFamily: 'monospace' }}>citizen@floodvision.org</span>
+            </button>
+          </div>
+        </div>
+
         {/* Error Alert Banner */}
         {error && (
           <div style={{

@@ -76,6 +76,15 @@ export default function Analyze() {
     if (input) input.click();
   };
 
+  const handleCameraCaptureClick = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    const input = document.getElementById('camera-capture-input');
+    if (input) input.click();
+  };
+
   const requestLocation = () => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -242,7 +251,6 @@ export default function Analyze() {
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            onClick={handleDropzoneClick}
             style={{ marginBottom: '20px' }}
           >
             <input 
@@ -252,26 +260,69 @@ export default function Analyze() {
               onChange={(e) => handleFile(e.target.files[0])}
               style={{ display: 'none' }}
             />
+            <input 
+              id="camera-capture-input"
+              type="file" 
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => handleFile(e.target.files[0])}
+              style={{ display: 'none' }}
+            />
 
             {previewUrl ? (
               <div style={{ textAlign: 'center' }}>
                 <img 
                   src={previewUrl} 
                   alt="Upload preview" 
-                  style={{ maxHeight: '280px', maxWidth: '100%', borderRadius: '8px', border: '1px solid var(--border-glass)' }}
+                  style={{ maxHeight: '280px', maxWidth: '100%', borderRadius: '8px', border: '2px solid #111111', objectFit: 'contain' }}
                 />
-                <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#38bdf8' }}>
-                  Click or drag another image to replace
+                <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleDropzoneClick}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem' }}
+                  >
+                    Change Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setFile(null); setPreviewUrl(null); }}
+                    className="btn btn-secondary"
+                    style={{ padding: '6px 14px', fontSize: '0.82rem', color: '#b91c1c' }}
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             ) : (
               <div>
-                <UploadCloud size={44} color="#38bdf8" style={{ margin: '0 auto 12px auto', display: 'block', opacity: 0.8 }} />
-                <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                  Drag & Drop street photo, or <span style={{ color: '#38bdf8', textDecoration: 'underline' }}>Browse</span>
+                <UploadCloud size={44} color="#0284c7" style={{ margin: '0 auto 12px auto', display: 'block' }} />
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginBottom: '6px' }}>
+                  Capture or Upload Road Water Photo
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  Supports JPEG, JPG, PNG (Max 5MB)
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap', margin: '14px 0 10px 0' }}>
+                  <button
+                    type="button"
+                    onClick={handleCameraCaptureClick}
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '0.86rem' }}
+                  >
+                    <Camera size={16} />
+                    <span>Take Photo (Camera)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDropzoneClick}
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 16px', fontSize: '0.86rem' }}
+                  >
+                    <UploadCloud size={16} />
+                    <span>Choose from Files</span>
+                  </button>
+                </div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
+                  Supports JPEG, JPG, PNG (Max 5MB) • Calibrated against 65cm car tire
                 </div>
               </div>
             )}

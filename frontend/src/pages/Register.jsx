@@ -80,7 +80,7 @@ export default function Register() {
   };
 
   return (
-    <div style={{ maxWidth: '540px', margin: '40px auto 60px auto', padding: '0 16px' }}>
+    <div style={{ maxWidth: '540px', margin: '16px auto 40px auto', padding: '0 8px' }}>
       
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '28px' }}>

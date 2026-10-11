@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Link } from 'react-router-dom';
-import { Waves, Camera, MapPin, Navigation, ShieldCheck, LogIn, LogOut, LayoutDashboard } from 'lucide-react';
+import { Waves, Camera, MapPin, Navigation, ShieldCheck, LogIn, LogOut, LayoutDashboard, Home as HomeIcon, User as UserIcon } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Home from './pages/Home';
 import Analyze from './pages/Analyze';
@@ -12,6 +12,44 @@ import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import AccessDenied from './pages/AccessDenied';
 import ProtectedRoute from './components/ProtectedRoute';
+
+function MobileBottomNav() {
+  const { user } = useAuth();
+  const dashboardPath = user ? (user.role === 'admin' ? '/admin/dashboard' : '/user/dashboard') : '/login';
+  const dashboardLabel = user ? (user.role === 'admin' ? 'Admin' : 'Dashboard') : 'Sign In';
+
+  return (
+    <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+      <NavLink to="/" end className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+        <HomeIcon size={20} />
+        <span>Home</span>
+      </NavLink>
+
+      <NavLink to="/analyze" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+        <Camera size={20} />
+        <span>Gauge</span>
+      </NavLink>
+
+      <NavLink to="/map" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+        <MapPin size={20} />
+        <span>Live Map</span>
+      </NavLink>
+
+      <NavLink to="/routes" className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}>
+        <Navigation size={20} />
+        <span>Routes</span>
+      </NavLink>
+
+      <NavLink 
+        to={dashboardPath} 
+        className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+      >
+        {user ? <LayoutDashboard size={20} /> : <LogIn size={20} />}
+        <span>{dashboardLabel}</span>
+      </NavLink>
+    </nav>
+  );
+}
 
 function NavbarAuth() {
   const { user, logout } = useAuth();
@@ -189,6 +227,9 @@ function App() {
             </div>
             <div>Computer Vision Waterlogging Gauge & Edge-Calibrated Depth Analytics</div>
           </footer>
+
+          {/* Mobile Bottom Navigation Bar (Phone Only) */}
+          <MobileBottomNav />
         </div>
       </BrowserRouter>
     </AuthProvider>

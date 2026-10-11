@@ -201,7 +201,8 @@ class AuthService:
             email=clean_email,
             hashed_password=hashed,
             role="admin",
-            is_active=True
+            is_active=True,
+            email_verified=True
         )
         logger.info(f"Admin user created successfully: {clean_email}")
         return admin_user
@@ -223,5 +224,26 @@ class AuthService:
                 except Exception as e:
                     logger.warning(f"Could not auto-seed admin: {e}")
         return None
+
+    def seed_initial_users(self):
+        """Seed default admin and citizen accounts if they do not exist."""
+        self.seed_initial_admin_if_configured()
+
+        citizen_email = "citizen@floodvision.org"
+        clean_citizen = citizen_email.strip().lower()
+        if not self.repo.get_by_email(clean_citizen):
+            try:
+                hashed = self.hash_password("Citizen123!")
+                self.repo.create_user(
+                    name="Demo Citizen User",
+                    email=clean_citizen,
+                    hashed_password=hashed,
+                    role="user",
+                    is_active=True,
+                    email_verified=True
+                )
+                logger.info(f"Demo citizen user seeded successfully: {clean_citizen}")
+            except Exception as e:
+                logger.warning(f"Could not auto-seed demo citizen: {e}")
 
 auth_service = AuthService()

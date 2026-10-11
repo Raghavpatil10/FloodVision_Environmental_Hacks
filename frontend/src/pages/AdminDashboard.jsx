@@ -261,7 +261,7 @@ export default function AdminDashboard() {
         Emergency Operations Command Telemetry
       </h3>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '14px', marginBottom: '24px' }}>
         <div className="glass-card" style={{ padding: '20px', border: '3px solid #111111', background: '#ffffff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '0.82rem', fontWeight: 800, textTransform: 'uppercase', color: '#64748b' }}>
@@ -335,8 +335,8 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', border: '2px solid #111111' }}>
+          {/* Navigation Tabs - Horizontally Scrollable on Mobile */}
+          <div className="presets-scroll-strip" style={{ background: '#f1f5f9', padding: '4px', borderRadius: '8px', border: '2px solid #111111' }}>
             <button
               onClick={() => handleTabChange('pending')}
               style={{
@@ -414,7 +414,7 @@ export default function AdminDashboard() {
                 </p>
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="table-responsive">
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #111111', textAlign: 'left' }}>
@@ -513,7 +513,7 @@ export default function AdminDashboard() {
                 No past applications have been processed yet.
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="table-responsive">
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #111111', textAlign: 'left' }}>
@@ -577,7 +577,7 @@ export default function AdminDashboard() {
                 No security audit logs recorded yet.
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="table-responsive">
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.84rem' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #111111', textAlign: 'left' }}>
@@ -642,10 +642,11 @@ export default function AdminDashboard() {
             background: '#ffffff',
             border: '3px solid #111111',
             borderRadius: '12px',
-            padding: '28px',
+            padding: '22px 18px',
             maxWidth: '520px',
-            width: '100%',
-            boxShadow: '8px 8px 0px #111111'
+            width: 'calc(100vw - 28px)',
+            boxShadow: '8px 8px 0px #111111',
+            boxSizing: 'border-box'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <div style={{

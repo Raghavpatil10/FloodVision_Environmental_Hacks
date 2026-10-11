@@ -3,10 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .api import analysis, incidents, routes, auth, admin, admin_requests
 
+from .services.auth_service import auth_service
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    auth_service.seed_initial_users()
     yield
 
 app = FastAPI(

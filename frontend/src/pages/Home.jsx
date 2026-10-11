@@ -67,9 +67,9 @@ export default function Home() {
       {/* Feature Cards Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-        gap: '24px',
-        marginBottom: '60px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: '20px',
+        marginBottom: '48px'
       }}>
         {/* Card 1: Gauge Depth */}
         <div className="glass-card glass-card-hover" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -163,8 +163,8 @@ export default function Home() {
         </h4>
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '20px'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+          gap: '16px'
         }}>
           <div>
             <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#38bdf8', fontFamily: 'var(--font-mono)' }}>65 cm</div>

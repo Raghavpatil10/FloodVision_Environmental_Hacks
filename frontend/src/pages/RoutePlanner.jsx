@@ -127,6 +127,8 @@ export default function RoutePlanner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [tileMode, setTileMode] = useState('dark');
+  const [mobileTab, setMobileTab] = useState('planner'); // 'planner' | 'map'
+  const [showRouteLegend, setShowRouteLegend] = useState(false);
 
   const origCoords = parseCoordinates(origin);
   const destCoords = parseCoordinates(destination);
@@ -148,6 +150,10 @@ export default function RoutePlanner() {
         destination: destCoords
       });
       setRouteData(res.data);
+      // On mobile devices, automatically switch to map view once route is ready
+      if (window.innerWidth <= 920) {
+        setMobileTab('map');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Could not plan route.');
     } finally {
@@ -193,50 +199,100 @@ export default function RoutePlanner() {
 
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-        gap: '24px',
-        alignItems: 'start'
-      }}>
+      {/* Mobile Tab Switcher for Phone View */}
+      <div className="mobile-route-switcher">
+        <button
+          type="button"
+          onClick={() => setMobileTab('planner')}
+          className="btn"
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            fontSize: '0.86rem',
+            fontWeight: 800,
+            background: mobileTab === 'planner' ? '#FFCE32' : '#ffffff',
+            color: '#111111',
+            border: '2px solid #111111',
+            boxShadow: '2px 2px 0px #111111',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          <Compass size={16} />
+          <span>Setup Route</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileTab('map')}
+          className="btn"
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            fontSize: '0.86rem',
+            fontWeight: 800,
+            background: mobileTab === 'map' ? '#FFCE32' : '#ffffff',
+            color: '#111111',
+            border: '2px solid #111111',
+            boxShadow: '2px 2px 0px #111111',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          <Navigation size={16} />
+          <span>Route Map {routeData ? '✓' : ''}</span>
+        </button>
+      </div>
+
+      <div className="route-planner-grid">
         {/* Left Column: Route Controller Panel */}
-        <div className="glass-card" style={{ padding: '24px', color: '#f8fafc' }}>
+        <div 
+          className={`glass-card ${mobileTab !== 'planner' ? 'route-panel-hidden' : ''}`} 
+          style={{ 
+            padding: '20px', 
+            color: '#f8fafc'
+          }}
+        >
           {/* Header */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
               <div style={{
-                width: 36, height: 36, borderRadius: '8px', 
+                width: 34, height: 34, borderRadius: '8px', 
                 background: 'rgba(124, 58, 237, 0.2)', display: 'flex', 
                 alignItems: 'center', justifyContent: 'center'
               }}>
-                <Compass size={22} color="#c084fc" />
+                <Compass size={20} color="#c084fc" />
               </div>
-              <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 800, color: '#f8fafc' }}>
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>
                 Safe Route Planner
               </h2>
             </div>
-            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.88rem', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.84rem', lineHeight: 1.45 }}>
               Calculates vehicle-safe routing weighted against real-time waterlogging depths to prevent engine stall.
             </p>
           </div>
 
           {/* Quick Demo Presets */}
-          <div style={{ marginBottom: '20px' }}>
+          <div style={{ marginBottom: '16px' }}>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '6px', 
-              fontSize: '0.78rem', 
-              fontWeight: 600, 
+              fontSize: '0.76rem', 
+              fontWeight: 700, 
               color: '#94a3b8', 
               textTransform: 'uppercase', 
               letterSpacing: '0.05em',
-              marginBottom: '8px'
+              marginBottom: '6px'
             }}>
-              <Sparkles size={14} color="#38bdf8" />
+              <Sparkles size={13} color="#38bdf8" />
               <span>Quick Demo Scenarios</span>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div className="presets-scroll-strip">
               {PRESETS.map((p, idx) => (
                 <button
                   key={idx}
@@ -244,6 +300,7 @@ export default function RoutePlanner() {
                   onClick={() => handleApplyPreset(p)}
                   className="chip-btn"
                   title={p.desc}
+                  style={{ whiteSpace: 'nowrap' }}
                 >
                   <MapPin size={12} color="#38bdf8" />
                   <span>{p.name}</span>
@@ -440,43 +497,123 @@ export default function RoutePlanner() {
         </div>
 
         {/* Right Column: Interactive Dark Map */}
-        <div style={{ 
-          position: 'relative', 
-          height: '75vh', 
-          borderRadius: 'var(--radius-lg)', 
-          overflow: 'hidden', 
-          border: '1px solid var(--border-glass)',
-          boxShadow: 'var(--shadow-md)'
-        }}>
-          {/* Floating Map Legend & Tile Switcher */}
-          <div className="map-overlay-panel" style={{ top: 16, right: 16, width: '230px' }}>
+        <div 
+          className={`route-planner-map ${mobileTab !== 'map' ? 'route-panel-hidden' : ''}`}
+          style={{ 
+            position: 'relative', 
+            height: '75vh', 
+            borderRadius: 'var(--radius-lg)', 
+            overflow: 'hidden', 
+            border: '2px solid #111111',
+            boxShadow: 'var(--shadow-md)'
+          }}
+        >
+          {/* Mobile Back to Setup Button (only shown on mobile in map view) */}
+          <div style={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 1000
+          }}>
+            <button
+              type="button"
+              onClick={() => setMobileTab('planner')}
+              className="chip-btn"
+              style={{
+                background: '#ffffff',
+                color: '#111111',
+                border: '2px solid #111111',
+                boxShadow: '2px 2px 0px #111111',
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 800
+              }}
+            >
+              <span>⬅️ Edit Route</span>
+            </button>
+          </div>
+
+          {/* Top Control Bar on Route Map */}
+          <div style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            zIndex: 1000,
+            display: 'flex',
+            gap: '8px'
+          }}>
+            <button
+              type="button"
+              onClick={() => setShowRouteLegend(!showRouteLegend)}
+              className="chip-btn"
+              style={{
+                background: showRouteLegend ? '#FFCE32' : '#ffffff',
+                color: '#111111',
+                border: '2px solid #111111',
+                boxShadow: '2px 2px 0px #111111',
+                padding: '6px 10px',
+                fontSize: '0.78rem',
+                fontWeight: 800
+              }}
+            >
+              <Layers size={13} />
+              <span>{showRouteLegend ? 'Hide Legend' : 'Legend'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTileMode(tileMode === 'dark' ? 'street' : 'dark')}
+              className="chip-btn"
+              style={{
+                background: '#ffffff',
+                color: '#111111',
+                border: '2px solid #111111',
+                boxShadow: '2px 2px 0px #111111',
+                padding: '6px 10px',
+                fontSize: '0.78rem',
+                fontWeight: 800
+              }}
+              title="Toggle Map Style"
+            >
+              <Eye size={12} />
+              <span>{tileMode === 'dark' ? 'Dark' : 'Street'}</span>
+            </button>
+          </div>
+
+          {/* Floating Map Legend (Desktop always, Mobile on toggle) */}
+          <div 
+            className={`map-overlay-panel route-legend-overlay ${showRouteLegend ? 'mobile-open' : ''}`} 
+            style={{ 
+              top: 12, 
+              right: 12, 
+              width: '220px', 
+              maxWidth: 'calc(100vw - 32px)' 
+            }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Layers size={14} color="#38bdf8" />
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#f8fafc' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#111111' }}>
                   Route Corridors
                 </span>
               </div>
-
               <button
-                onClick={() => setTileMode(tileMode === 'dark' ? 'street' : 'dark')}
-                className="chip-btn"
-                style={{ padding: '2px 8px', fontSize: '0.72rem' }}
-                title="Toggle Map Style"
+                type="button"
+                onClick={() => setShowRouteLegend(false)}
+                style={{ background: 'none', border: 'none', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}
               >
-                <Eye size={11} />
-                <span>{tileMode === 'dark' ? 'Dark' : 'Street'}</span>
+                ✕
               </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: 18, height: 4, background: '#10b981', borderRadius: '2px', boxShadow: '0 0 6px #10b981' }}></div>
-                <span style={{ color: '#34d399', fontWeight: 500 }}>Safe Pass Corridor</span>
+                <span style={{ color: '#15803d', fontWeight: 700 }}>Safe Pass Corridor</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: 18, height: 4, background: '#ef4444', borderRadius: '2px', boxShadow: '0 0 6px #ef4444' }}></div>
-                <span style={{ color: '#f87171', fontWeight: 500 }}>Hazard Zone / Stall Risk</span>
+                <span style={{ color: '#b91c1c', fontWeight: 700 }}>Hazard Zone / Stall Risk</span>
               </div>
             </div>
           </div>
@@ -555,6 +692,39 @@ export default function RoutePlanner() {
               </>
             )}
           </MapContainer>
+
+          {/* Mobile Bottom Route Summary Card */}
+          {routeData && routeData.recommended_route && (
+            <div className="mobile-route-bottom-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span className={`badge ${routeScore < 50 ? 'badge-danger' : 'badge-safe'}`} style={{ padding: '3px 8px', fontSize: '0.72rem' }}>
+                  <ShieldCheck size={12} />
+                  <span>{routeScore < 50 ? 'High Risk' : 'Recommended Route'}</span>
+                </span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 800, color: polylineColor }}>
+                  Score: {routeScore}/100
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#111111', fontFamily: 'var(--font-mono)' }}>
+                    {(routeData.recommended_route.total_distance_m / 1000).toFixed(1)} km 
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#64748b', marginLeft: '6px' }}>
+                      ({Math.max(1, Math.round(routeData.recommended_route.total_duration_s / 60))} min)
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('planner')}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.76rem', fontWeight: 800 }}
+                >
+                  Options & Turns
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
